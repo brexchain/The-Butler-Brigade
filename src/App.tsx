@@ -24,7 +24,22 @@ import {
   Receipt,
   LogOut,
   Home,
-  Sparkles
+  Sparkles,
+  Unlock,
+  Maximize,
+  Minimize,
+  RotateCcw,
+  LayoutDashboard,
+  ClipboardList,
+  Users,
+  Settings,
+  Bell,
+  Search,
+  Filter,
+  Check,
+  Clock,
+  Truck,
+  MoreVertical
 } from 'lucide-react';
 
 // --- Types ---
@@ -58,6 +73,16 @@ interface Message {
   text: string;
 }
 
+interface Order {
+  id: string;
+  room: string;
+  items: CartItem[];
+  total: number;
+  status: 'pending' | 'preparing' | 'delivering' | 'completed';
+  timestamp: number;
+  butlerName: string;
+}
+
 // --- Translations ---
 
 const TRANSLATIONS: Record<Language, any> = {
@@ -78,35 +103,132 @@ const TRANSLATIONS: Record<Language, any> = {
 // --- Constants ---
 
 const BUTLERS: Butler[] = [
-  { id: 'hans', name: 'Hans Pünktlich', lang: 'DE', oxymoron: 'Pünktlich', flag: '🇩🇪' },
-  { id: 'reginald', name: 'Reginald Late', lang: 'EN', oxymoron: 'Late', flag: '🇬🇧' },
-  { id: 'pierre', name: 'Pierre Chaotique', lang: 'FR', oxymoron: 'Chaotique', flag: '🇫🇷' },
-  { id: 'wei', name: 'Wei Silent', lang: 'ZH', oxymoron: 'Silent', flag: '🇨🇳' },
-  { id: 'ahmed', name: 'Ahmed Rush', lang: 'AR', oxymoron: 'Rush', flag: '🇸🇦' },
-  { id: 'carlos', name: 'Carlos Siesta', lang: 'ES', oxymoron: 'Siesta', flag: '🇪🇸' },
-  { id: 'luigi', name: 'Luigi Hastig', lang: 'IT', oxymoron: 'Hastig', flag: '🇮🇹' },
-  { id: 'kenji', name: 'Kenji Imperfekt', lang: 'JA', oxymoron: 'Imperfekt', flag: '🇯🇵' },
-  { id: 'joao', name: 'João Calm', lang: 'PT', oxymoron: 'Calm', flag: '🇧🇷' },
-  { id: 'ivan', name: 'Ivan Tiny', lang: 'RU', oxymoron: 'Tiny', flag: '🇷🇺' },
-  { id: 'raj', name: 'Raj Quiet', lang: 'HI', oxymoron: 'Quiet', flag: '🇮🇳' },
-  { id: 'jihoon', name: 'Ji-Hoon Loud', lang: 'KO', oxymoron: 'Loud', flag: '🇰🇷' },
+  { id: 'hans', name: 'Hans Pünktlich', lang: 'DE', oxymoron: 'Obsessed with 12-minute precision', flag: '🇩🇪' },
+  { id: 'reginald', name: 'Reginald Late', lang: 'EN', oxymoron: 'Always 15 minutes late for tea', flag: '🇬🇧' },
+  { id: 'pierre', name: 'Pierre Chaotique', lang: 'FR', oxymoron: 'Will forget your room number twice', flag: '🇫🇷' },
+  { id: 'wei', name: 'Wei Silent', lang: 'ZH', oxymoron: 'Silent but judging your decor', flag: '🇨🇳' },
+  { id: 'ahmed', name: 'Ahmed Rush', lang: 'AR', oxymoron: 'Faster than a desert wind', flag: '🇸🇦' },
+  { id: 'carlos', name: 'Carlos Siesta', lang: 'ES', oxymoron: 'Currently on a 3-hour siesta', flag: '🇪🇸' },
+  { id: 'luigi', name: 'Luigi Hastig', lang: 'IT', oxymoron: 'Never breaks the spaghetti', flag: '🇮🇹' },
+  { id: 'kenji', name: 'Kenji Imperfekt', lang: 'JA', oxymoron: 'Apologizes for 1-second delays', flag: '🇯🇵' },
+  { id: 'joao', name: 'João Calm', lang: 'PT', oxymoron: 'Calmer than a Sunday morning', flag: '🇧🇷' },
+  { id: 'ivan', name: 'Ivan Tiny', lang: 'RU', oxymoron: 'Tiny but carries three trunks', flag: '🇷🇺' },
+  { id: 'raj', name: 'Raj Quiet', lang: 'HI', oxymoron: 'Quieter than a library mouse', flag: '🇮🇳' },
+  { id: 'jihoon', name: 'Ji-Hoon Loud', lang: 'KO', oxymoron: 'Loudest butler in the East', flag: '🇰🇷' },
 ];
 
 const MENU: (MenuItem & { image?: string })[] = [
-  // Food
+  // --- EXISTING ITEMS ---
   { id: 'm1', name: 'Kaviar "Royal"', description: 'Beluga Kaviar mit Blinis und Sauerrahm', price: 120, category: 'Speisen', isRecommended: true, image: 'https://images.unsplash.com/photo-1599059813005-11265ba4b4ce?auto=format&fit=crop&w=400&q=80' },
   { id: 'm2', name: 'Trüffel Pasta', description: 'Hausgemachte Tagliatelle mit frischem Sommertrüffel', price: 45, category: 'Speisen', image: 'https://images.unsplash.com/photo-1473093226795-af9932fe5856?auto=format&fit=crop&w=400&q=80' },
   { id: 'm3', name: 'Wagyu Burger', description: 'A5 Wagyu Beef, karamellisierte Zwiebeln, Brioche Bun', price: 65, category: 'Speisen', isRecommended: true, image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=400&q=80' },
   { id: 'm4', name: 'Champagner Sorbet', description: 'Erfrischendes Sorbet aus Dom Pérignon', price: 25, category: 'Speisen', image: 'https://images.unsplash.com/photo-1499638673689-79a0b5115d87?auto=format&fit=crop&w=400&q=80' },
   { id: 'm5', name: 'Goldener Cappuccino', description: 'Mit 24 Karat Blattgold verziert', price: 18, category: 'Getränke', isRecommended: true, image: 'https://images.unsplash.com/photo-1541167760496-162955ed8a9f?auto=format&fit=crop&w=400&q=80' },
   { id: 'm6', name: 'Hummer Thermidor', description: 'Frischer Hummer in cremiger Cognac-Sauce', price: 85, category: 'Speisen', image: 'https://images.unsplash.com/photo-1559742811-822873691df8?auto=format&fit=crop&w=400&q=80' },
-  // Services
+  { id: 'e1', name: 'The Romantic Evening', description: 'Rose petals, chilled Champagne, and artisanal chocolates.', price: 180, category: 'Experience', isRecommended: true, image: 'https://images.unsplash.com/photo-1516589174184-c685266e430c?auto=format&fit=crop&w=800&q=80' },
+  { id: 'e2', name: 'The Midnight Celebration', description: 'Vintage Cognac, premium cigars, and late-night tapas.', price: 250, category: 'Experience', image: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=800&q=80' },
+  { id: 'e3', name: 'The Spa at Home', description: 'Luxury bath oils, silk robe (to keep), and herbal infusion.', price: 145, category: 'Experience', image: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=800&q=80' },
   { id: 's1', name: 'Frische Handtücher', description: 'Satz flauschige ägyptische Baumwollhandtücher', price: 0, category: 'Service' },
   { id: 's2', name: 'Schuhputz-Service', description: 'Über Nacht Politur für Ihre feinsten Schuhe', price: 15, category: 'Service' },
   { id: 's3', name: 'Taxi-Ruf', description: 'Sofortige Abholung vor dem Haupteingang', price: 0, category: 'Service' },
   { id: 's4', name: 'Gepäck-Service', description: 'Abholung Ihrer Koffer für den Check-out', price: 0, category: 'Service' },
   { id: 's5', name: 'Abend-Turndown', description: 'Vorbereitung Ihres Zimmers für die Nacht', price: 0, category: 'Service' },
   { id: 's6', name: 'IT-Butler', description: 'Hilfe bei WLAN oder Geräte-Verbindungen', price: 0, category: 'Service' },
+
+  // --- BREAKFAST (15 items) ---
+  { id: 'b1', name: 'Eggs Benedict', description: 'Poached eggs, hollandaise, smoked ham on English muffin', price: 24, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1600335895229-6e75511892c8?auto=format&fit=crop&w=400&q=80' },
+  { id: 'b2', name: 'Avocado Toast', description: 'Sourdough, poached egg, chili flakes, radish', price: 22, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=400&q=80' },
+  { id: 'b3', name: 'Belgian Waffles', description: 'Fresh berries, maple syrup, whipped cream', price: 18, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1562376552-0d160a2f238d?auto=format&fit=crop&w=400&q=80' },
+  { id: 'b4', name: 'French Toast', description: 'Brioche, cinnamon, caramelized bananas', price: 19, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1484723091739-30a097e8f929?auto=format&fit=crop&w=400&q=80' },
+  { id: 'b5', name: 'Smoked Salmon Bagel', description: 'Cream cheese, capers, red onion, dill', price: 26, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=400&q=80' },
+  { id: 'b6', name: 'Acai Bowl', description: 'Granola, honey, dragon fruit, coconut', price: 16, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1590301157890-4810ed352733?auto=format&fit=crop&w=400&q=80' },
+  { id: 'b7', name: 'Full English', description: 'Eggs, bacon, sausage, beans, mushrooms, tomato', price: 28, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=400&q=80' },
+  { id: 'b8', name: 'Shakshuka', description: 'Spiced tomato sauce, poached eggs, feta, pita', price: 21, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1590412200988-a436bb7050a8?auto=format&fit=crop&w=400&q=80' },
+  { id: 'b9', name: 'Pancakes', description: 'Buttermilk pancakes, blueberries, lemon zest', price: 17, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1528207776546-365bb710ee93?auto=format&fit=crop&w=400&q=80' },
+  { id: 'b10', name: 'Omelette', description: 'Three eggs, choice of cheese, herbs, vegetables', price: 20, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1510629954389-c1e0da47d414?auto=format&fit=crop&w=400&q=80' },
+  { id: 'b11', name: 'Chia Pudding', description: 'Almond milk, mango, toasted seeds', price: 14, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1511690656952-34342bb7c2f2?auto=format&fit=crop&w=400&q=80' },
+  { id: 'b12', name: 'Continental Plate', description: 'Croissant, cheese, cold cuts, jam, butter', price: 22, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=400&q=80' },
+  { id: 'b13', name: 'Steak & Eggs', description: 'Grilled sirloin, two eggs any style, hash browns', price: 38, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=400&q=80' },
+  { id: 'b14', name: 'Fruit Platter', description: 'Seasonal exotic fruits, lime, mint', price: 18, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1490818387583-1baba5e638af?auto=format&fit=crop&w=400&q=80' },
+  { id: 'b15', name: 'Granola Parfait', description: 'Greek yogurt, honey, toasted oats, berries', price: 15, category: 'Breakfast', image: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=400&q=80' },
+
+  // --- LUNCH (20 items) ---
+  { id: 'l1', name: 'Caesar Salad', description: 'Romaine, parmesan, croutons, anchovy dressing', price: 22, category: 'Lunch', image: 'https://images.unsplash.com/photo-1550304943-4f24f54ddde9?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l2', name: 'Club Sandwich', description: 'Turkey, bacon, lettuce, tomato, egg, mayo', price: 24, category: 'Lunch', image: 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l3', name: 'Lobster Roll', description: 'Fresh lobster, butter, brioche roll, chives', price: 42, category: 'Lunch', image: 'https://images.unsplash.com/photo-1533682805518-48d1f5b8cd3a?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l4', name: 'Margherita Pizza', description: 'Buffalo mozzarella, tomato, basil', price: 20, category: 'Lunch', image: 'https://images.unsplash.com/photo-1574071318508-1cdbad80ad38?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l5', name: 'Quinoa Bowl', description: 'Roasted vegetables, chickpeas, tahini dressing', price: 19, category: 'Lunch', image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l6', name: 'Fish & Chips', description: 'Beer-battered cod, mushy peas, tartar sauce', price: 28, category: 'Lunch', image: 'https://images.unsplash.com/photo-1524339102455-67be5440371b?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l7', name: 'Beef Carpaccio', description: 'Arugula, parmesan, truffle oil, lemon', price: 26, category: 'Lunch', image: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l8', name: 'Poke Bowl', description: 'Ahi tuna, avocado, edamame, seaweed', price: 25, category: 'Lunch', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l9', name: 'Chicken Quesadilla', description: 'Peppers, onions, cheese, guacamole, salsa', price: 21, category: 'Lunch', image: 'https://images.unsplash.com/photo-1599974579688-8dbdd335c77f?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l10', name: 'Gazpacho', description: 'Chilled tomato soup, cucumber, bell pepper', price: 15, category: 'Lunch', image: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l11', name: 'Falafel Wrap', description: 'Hummus, pickled cabbage, tahini, flatbread', price: 18, category: 'Lunch', image: 'https://images.unsplash.com/photo-1547050605-2f2680039082?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l12', name: 'Niçoise Salad', description: 'Seared tuna, green beans, olives, egg, potato', price: 26, category: 'Lunch', image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l13', name: 'Mushroom Risotto', description: 'Arborio rice, wild mushrooms, parmesan', price: 28, category: 'Lunch', image: 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l14', name: 'Pulled Pork Sliders', description: 'BBQ pork, coleslaw, brioche buns', price: 22, category: 'Lunch', image: 'https://images.unsplash.com/photo-1527324688151-0e627063f2b1?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l15', name: 'Greek Salad', description: 'Cucumber, tomato, feta, olives, red onion', price: 18, category: 'Lunch', image: 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l16', name: 'Shrimp Tacos', description: 'Cabbage slaw, lime crema, cilantro', price: 24, category: 'Lunch', image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l17', name: 'Minestrone Soup', description: 'Seasonal vegetables, pasta, pesto', price: 14, category: 'Lunch', image: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l18', name: 'Caprese Panini', description: 'Tomato, mozzarella, basil, balsamic glaze', price: 19, category: 'Lunch', image: 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l19', name: 'Thai Green Curry', description: 'Chicken, bamboo shoots, jasmine rice', price: 26, category: 'Lunch', image: 'https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?auto=format&fit=crop&w=400&q=80' },
+  { id: 'l20', name: 'Cobb Salad', description: 'Chicken, avocado, egg, blue cheese, bacon', price: 24, category: 'Lunch', image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=400&q=80' },
+
+  // --- DINNER (25 items) ---
+  { id: 'd1', name: 'Filet Mignon', description: '8oz center cut, garlic butter, asparagus', price: 58, category: 'Dinner', image: 'https://images.unsplash.com/photo-1546241072-48010ad28c2c?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd2', name: 'Sea Bass', description: 'Pan-seared, lemon caper sauce, spinach', price: 48, category: 'Dinner', image: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd3', name: 'Rack of Lamb', description: 'Herb-crusted, mint jus, roasted potatoes', price: 52, category: 'Dinner', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd4', name: 'Duck Confit', description: 'Slow-cooked leg, cherry reduction, lentils', price: 44, category: 'Dinner', image: 'https://images.unsplash.com/photo-1514516348920-f319309b4671?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd5', name: 'Lobster Tail', description: 'Butter-poached, saffron risotto', price: 65, category: 'Dinner', image: 'https://images.unsplash.com/photo-1559742811-822873691df8?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd6', name: 'Beef Wellington', description: 'Puff pastry, mushroom duxelles, red wine sauce', price: 62, category: 'Dinner', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd7', name: 'Scallops', description: 'Pan-seared, pea puree, pancetta', price: 46, category: 'Dinner', image: 'https://images.unsplash.com/photo-1532636875304-0c89119d9b4d?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd8', name: 'Chicken Marsala', description: 'Mushroom sauce, mashed potatoes', price: 36, category: 'Dinner', image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd9', name: 'Salmon Fillet', description: 'Miso-glazed, bok choy, ginger', price: 42, category: 'Dinner', image: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd10', name: 'Short Ribs', description: 'Braised for 12 hours, polenta, gremolata', price: 48, category: 'Dinner', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd11', name: 'Vegetable Lasagna', description: 'Zucchini, eggplant, ricotta, marinara', price: 32, category: 'Dinner', image: 'https://images.unsplash.com/photo-1574894709920-11b28e7367e3?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd12', name: 'Pork Belly', description: 'Crispy skin, apple slaw, cider reduction', price: 38, category: 'Dinner', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd13', name: 'Seafood Paella', description: 'Shrimp, mussels, clams, saffron rice', price: 54, category: 'Dinner', image: 'https://images.unsplash.com/photo-1534080564607-c9275445f29c?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd14', name: 'Veal Piccata', description: 'Lemon, capers, white wine, linguine', price: 45, category: 'Dinner', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd15', name: 'Eggplant Parmesan', description: 'Breaded eggplant, mozzarella, tomato sauce', price: 28, category: 'Dinner', image: 'https://images.unsplash.com/photo-1625938146369-adc83368bda7?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd16', name: 'Ribeye Steak', description: '12oz, peppercorn sauce, truffle fries', price: 56, category: 'Dinner', image: 'https://images.unsplash.com/photo-1546241072-48010ad28c2c?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd17', name: 'Shrimp Scampi', description: 'Garlic, lemon, white wine, parsley, pasta', price: 38, category: 'Dinner', image: 'https://images.unsplash.com/photo-1535980156496-87fc2cfcb832?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd18', name: 'Lamb Tagine', description: 'Apricots, almonds, couscous', price: 42, category: 'Dinner', image: 'https://images.unsplash.com/photo-1541518763669-27f704525cc0?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd19', name: 'Ratatouille', description: 'Classic Provencal vegetable stew', price: 26, category: 'Dinner', image: 'https://images.unsplash.com/photo-1572453800999-e8d2d1589b7c?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd20', name: 'Venison Loin', description: 'Juniper berries, parsnip puree', price: 54, category: 'Dinner', image: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd21', name: 'Crab Cakes', description: 'Jumbo lump crab, remoulade, corn salad', price: 44, category: 'Dinner', image: 'https://images.unsplash.com/photo-1534604973900-c41ab4c5e636?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd22', name: 'Gnocchi', description: 'Potato gnocchi, brown butter, sage', price: 30, category: 'Dinner', image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd23', name: 'T-Bone Steak', description: '16oz, roasted garlic, baked potato', price: 64, category: 'Dinner', image: 'https://images.unsplash.com/photo-1546241072-48010ad28c2c?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd24', name: 'Bouillabaisse', description: 'Traditional French seafood stew', price: 52, category: 'Dinner', image: 'https://images.unsplash.com/photo-1534080564607-c9275445f29c?auto=format&fit=crop&w=400&q=80' },
+  { id: 'd25', name: 'Wild Boar Ragu', description: 'Pappardelle, pecorino, red wine', price: 38, category: 'Dinner', image: 'https://images.unsplash.com/photo-1473093226795-af9932fe5856?auto=format&fit=crop&w=400&q=80' },
+
+  // --- DESSERT (15 items) ---
+  { id: 'ds1', name: 'Tiramisu', description: 'Espresso, mascarpone, ladyfingers', price: 16, category: 'Dessert', image: 'https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=400&q=80' },
+  { id: 'ds2', name: 'Crème Brûlée', description: 'Vanilla bean, caramelized sugar', price: 15, category: 'Dessert', image: 'https://images.unsplash.com/photo-1470333738063-93ccc8b86159?auto=format&fit=crop&w=400&q=80' },
+  { id: 'ds3', name: 'Chocolate Fondant', description: 'Molten center, vanilla gelato', price: 18, category: 'Dessert', image: 'https://images.unsplash.com/photo-1624353365286-3f8d62daad51?auto=format&fit=crop&w=400&q=80' },
+  { id: 'ds4', name: 'Apple Tarte Tatin', description: 'Caramelized apples, puff pastry', price: 17, category: 'Dessert', image: 'https://images.unsplash.com/photo-1519915028121-7d3463d20b13?auto=format&fit=crop&w=400&q=80' },
+  { id: 'ds5', name: 'New York Cheesecake', description: 'Graham cracker crust, berry compote', price: 16, category: 'Dessert', image: 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=400&q=80' },
+  { id: 'ds6', name: 'Panna Cotta', description: 'Honey, lavender, fresh figs', price: 14, category: 'Dessert', image: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=400&q=80' },
+  { id: 'ds7', name: 'Profiteroles', description: 'Choux pastry, vanilla cream, chocolate sauce', price: 15, category: 'Dessert', image: 'https://images.unsplash.com/photo-1551024601-bec78aea704b?auto=format&fit=crop&w=400&q=80' },
+  { id: 'ds8', name: 'Lemon Meringue Tart', description: 'Shortcrust, lemon curd, toasted meringue', price: 16, category: 'Dessert', image: 'https://images.unsplash.com/photo-1519915028121-7d3463d20b13?auto=format&fit=crop&w=400&q=80' },
+  { id: 'ds9', name: 'Baklava', description: 'Phyllo, pistachios, honey syrup', price: 14, category: 'Dessert', image: 'https://images.unsplash.com/photo-1519676867240-f03562e64548?auto=format&fit=crop&w=400&q=80' },
+  { id: 'ds10', name: 'Soufflé', description: 'Grand Marnier, orange zest', price: 20, category: 'Dessert', image: 'https://images.unsplash.com/photo-1579306194872-64d3b7bac4c2?auto=format&fit=crop&w=400&q=80' },
+  { id: 'ds11', name: 'Gelato Trio', description: 'Choice of three seasonal flavors', price: 12, category: 'Dessert', image: 'https://images.unsplash.com/photo-1501443762994-82bd5dabb8d2?auto=format&fit=crop&w=400&q=80' },
+  { id: 'ds12', name: 'Fruit Tart', description: 'Pastry cream, seasonal fruits', price: 15, category: 'Dessert', image: 'https://images.unsplash.com/photo-1519915028121-7d3463d20b13?auto=format&fit=crop&w=400&q=80' },
+  { id: 'ds13', name: 'Pavlova', description: 'Meringue, passion fruit, kiwi', price: 16, category: 'Dessert', image: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=400&q=80' },
+  { id: 'ds14', name: 'Sticky Toffee Pudding', description: 'Dates, butterscotch, vanilla ice cream', price: 17, category: 'Dessert', image: 'https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&w=400&q=80' },
+  { id: 'ds15', name: 'Macaron Selection', description: 'Six assorted French macarons', price: 18, category: 'Dessert', image: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=400&q=80' },
+
+  // --- DRINKS (10 items) ---
+  { id: 'dr1', name: 'Espresso Martini', description: 'Vodka, espresso, coffee liqueur', price: 18, category: 'Getränke', image: 'https://images.unsplash.com/photo-1545438102-799c3991ffb2?auto=format&fit=crop&w=400&q=80' },
+  { id: 'dr2', name: 'Old Fashioned', description: 'Bourbon, bitters, sugar, orange', price: 19, category: 'Getränke', image: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=400&q=80' },
+  { id: 'dr3', name: 'Negroni', description: 'Gin, Campari, sweet vermouth', price: 18, category: 'Getränke', image: 'https://images.unsplash.com/photo-1551538827-9c037cb4f32a?auto=format&fit=crop&w=400&q=80' },
+  { id: 'dr4', name: 'Margarita', description: 'Tequila, lime, agave, salt', price: 17, category: 'Getränke', image: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=400&q=80' },
+  { id: 'dr5', name: 'Fresh Green Juice', description: 'Kale, apple, cucumber, ginger', price: 12, category: 'Getränke', image: 'https://images.unsplash.com/photo-1610970881699-44a5587cabec?auto=format&fit=crop&w=400&q=80' },
+  { id: 'dr6', name: 'Craft Beer', description: 'Local IPA or Lager', price: 10, category: 'Getränke', image: 'https://images.unsplash.com/photo-1535958636474-b021ee887b13?auto=format&fit=crop&w=400&q=80' },
+  { id: 'dr7', name: 'Still Water', description: '750ml Premium Mineral Water', price: 9, category: 'Getränke', image: 'https://images.unsplash.com/photo-1523362628745-0c100150b504?auto=format&fit=crop&w=400&q=80' },
+  { id: 'dr8', name: 'Sparkling Water', description: '750ml Premium Sparkling Water', price: 9, category: 'Getränke', image: 'https://images.unsplash.com/photo-1559839914-17aae19cea9e?auto=format&fit=crop&w=400&q=80' },
+  { id: 'dr9', name: 'Earl Grey Tea', description: 'Loose leaf, lemon or milk', price: 8, category: 'Getränke', image: 'https://images.unsplash.com/photo-1544787210-2213d84ad960?auto=format&fit=crop&w=400&q=80' },
+  { id: 'dr10', name: 'Hot Chocolate', description: 'Valrhona chocolate, marshmallows', price: 10, category: 'Getränke', image: 'https://images.unsplash.com/photo-1544787210-2213d84ad960?auto=format&fit=crop&w=400&q=80' },
 ];
 
 const PILLOWS = [
@@ -187,8 +309,17 @@ const TetrisGame = ({ onBack }: { onBack: () => void }) => {
   const [activePiece, setActivePiece] = useState<{ shape: number[][], x: number, y: number, emoji: string } | null>(null);
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const gameLoopRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
+
+  const restart = () => {
+    setGrid(Array(ROWS).fill(null).map(() => Array(COLS).fill('')));
+    setScore(0);
+    setGameOver(false);
+    setActivePiece(spawnPiece());
+    lastTimeRef.current = 0;
+  };
 
   const spawnPiece = () => {
     const shapeIndex = Math.floor(Math.random() * SHAPES.length);
@@ -279,7 +410,32 @@ const TetrisGame = ({ onBack }: { onBack: () => void }) => {
   };
 
   useEffect(() => {
-    setActivePiece(spawnPiece());
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (gameOver) return;
+      
+      // Prevent scrolling for game keys
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
+
+      switch (e.key) {
+        case 'ArrowLeft': move(-1, 0); break;
+        case 'ArrowRight': move(1, 0); break;
+        case 'ArrowDown': move(0, 1); break;
+        case 'ArrowUp': handleRotate(); break;
+        case ' ': move(0, 1); break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activePiece, gameOver, grid]);
+
+  useEffect(() => {
+    if (!activePiece && !gameOver) {
+      setActivePiece(spawnPiece());
+    }
+
     const animate = (time: number) => {
       if (!lastTimeRef.current) lastTimeRef.current = time;
       const deltaTime = time - lastTimeRef.current;
@@ -294,22 +450,29 @@ const TetrisGame = ({ onBack }: { onBack: () => void }) => {
     return () => {
       if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
     };
-  }, [gameOver]);
+  }, [gameOver, activePiece]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-6">
+    <div className={`flex flex-col items-center justify-center bg-slate-900 text-white p-6 transition-all duration-500 ${isFullScreen ? 'fixed inset-0 z-[200]' : 'min-h-screen'}`}>
       <header className="w-full max-w-xs flex justify-between items-center mb-4">
-        <button onClick={onBack} className="p-2 rounded-full bg-slate-800">
+        <button onClick={onBack} className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 transition-colors">
           <ArrowLeft className="w-6 h-6" />
         </button>
         <div className="text-center">
           <h2 className="text-xl font-black italic text-amber-400">Food-Tetris</h2>
           <p className="text-xs font-bold">Score: {score}</p>
         </div>
-        <div className="w-10" />
+        <div className="flex gap-2">
+          <button onClick={restart} className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 transition-colors text-amber-400">
+            <RotateCcw className="w-5 h-5" />
+          </button>
+          <button onClick={() => setIsFullScreen(!isFullScreen)} className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 transition-colors">
+            {isFullScreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+          </button>
+        </div>
       </header>
       
-      <div className="relative w-64 h-[400px] bg-slate-800 rounded-xl border-4 border-slate-700 overflow-hidden grid grid-cols-10 grid-rows-20">
+      <div className={`relative bg-slate-800 rounded-xl border-4 border-slate-700 overflow-hidden grid grid-cols-10 grid-rows-20 ${isFullScreen ? 'w-[320px] h-[500px]' : 'w-64 h-[400px]'}`}>
         {grid.map((row, y) => row.map((cell, x) => (
           <div key={`${y}-${x}`} className="border border-slate-700/30 flex items-center justify-center text-lg">
             {cell}
@@ -317,15 +480,17 @@ const TetrisGame = ({ onBack }: { onBack: () => void }) => {
         )))}
         {activePiece && activePiece.shape.map((row, y) => row.map((value, x) => {
           if (!value) return null;
+          const cellSizeX = isFullScreen ? 31.2 : 25.6;
+          const cellSizeY = isFullScreen ? 25 : 20;
           return (
             <div 
               key={`active-${y}-${x}`}
               className="absolute flex items-center justify-center text-lg"
               style={{
-                width: '25.6px',
-                height: '20px',
-                left: `${(activePiece.x + x) * 25.6}px`,
-                top: `${(activePiece.y + y) * 20}px`
+                width: `${cellSizeX}px`,
+                height: `${cellSizeY}px`,
+                left: `${(activePiece.x + x) * cellSizeX}px`,
+                top: `${(activePiece.y + y) * cellSizeY}px`
               }}
             >
               {activePiece.emoji}
@@ -333,12 +498,12 @@ const TetrisGame = ({ onBack }: { onBack: () => void }) => {
           );
         }))}
         {gameOver && (
-          <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-4 text-center">
+          <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-4 text-center z-50">
             <h3 className="text-2xl font-black text-red-500 mb-2">GAME OVER</h3>
             <p className="mb-4">Final Score: {score}</p>
             <button 
-              onClick={() => { setGrid(Array(ROWS).fill(null).map(() => Array(COLS).fill(''))); setScore(0); setGameOver(false); setActivePiece(spawnPiece()); }}
-              className="px-6 py-2 bg-amber-500 rounded-full font-bold"
+              onClick={restart}
+              className="px-6 py-2 bg-amber-500 rounded-full font-bold shadow-lg shadow-amber-500/30 active:scale-95 transition-all"
             >
               Nochmal!
             </button>
@@ -346,7 +511,7 @@ const TetrisGame = ({ onBack }: { onBack: () => void }) => {
         )}
       </div>
 
-      <div className="mt-6 grid grid-cols-3 gap-4 w-full max-w-xs">
+      <div className={`mt-6 grid grid-cols-3 gap-4 w-full max-w-xs ${isFullScreen ? 'scale-110' : ''}`}>
         <button onClick={() => move(-1, 0)} className="p-4 bg-slate-800 rounded-xl active:bg-slate-700 flex justify-center"><ChevronRight className="rotate-180" /></button>
         <button onClick={handleRotate} className="p-4 bg-amber-500 rounded-xl active:bg-amber-600 flex justify-center"><RefreshCw /></button>
         <button onClick={() => move(1, 0)} className="p-4 bg-slate-800 rounded-xl active:bg-slate-700 flex justify-center"><ChevronRight /></button>
@@ -359,8 +524,8 @@ const TetrisGame = ({ onBack }: { onBack: () => void }) => {
 };
 
 export default function App() {
-  const [screen, setScreen] = useState<'landing' | 'butler' | 'room' | 'menu' | 'thanks' | 'tetris' | 'key' | 'bill'>('landing');
-  const [menuTab, setMenuTab] = useState<'food' | 'service'>('food');
+  const [screen, setScreen] = useState<'landing' | 'butler' | 'room' | 'menu' | 'thanks' | 'tetris' | 'key' | 'bill' | 'staff'>('landing');
+  const [menuTab, setMenuTab] = useState<'food' | 'service' | 'concierge'>('food');
   const [showPillowMenu, setShowPillowMenu] = useState(false);
   const [selectedButler, setSelectedButler] = useState<Butler | null>(null);
   const [roomNumber, setRoomNumber] = useState('');
@@ -375,6 +540,20 @@ export default function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [billItems, setBillItems] = useState<CartItem[]>([]);
   const [isNavHidden, setIsNavHidden] = useState(false);
+  const [vouchers, setVouchers] = useState<{code: string, place: string, discount: string}[]>([]);
+  const [isGoldenHour, setIsGoldenHour] = useState(false);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+
+  // Golden Hour Logic (Simulated for demo)
+  useEffect(() => {
+    const hour = new Date().getHours();
+    // For demo purposes, we'll enable it if it's between 15:00 and 23:00
+    if (hour >= 15 && hour <= 23) {
+      setIsGoldenHour(true);
+    }
+  }, []);
 
   // Persistence
   useEffect(() => {
@@ -384,6 +563,7 @@ export default function App() {
         const parsed = JSON.parse(saved);
         setIsDarkMode(parsed.isDarkMode ?? true);
         setGender(parsed.gender ?? 'male');
+        if (parsed.orders) setOrders(parsed.orders);
       } catch (e) {
         console.error("Failed to parse state", e);
       }
@@ -391,7 +571,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('butler_brigade_state', JSON.stringify({ isDarkMode, gender }));
+    localStorage.setItem('butler_brigade_state', JSON.stringify({ isDarkMode, gender, orders }));
     // Apply dark mode class to both html and body for maximum compatibility
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -438,6 +618,18 @@ export default function App() {
     const orderText = cart.map(i => `${i.quantity}x ${i.name}`).join('%0A');
     const message = `Hallo ${selectedButler?.name}, ich möchte gerne bestellen für Zimmer ${roomNumber}:%0A%0A${orderText}%0A%0AGesamt: ${total}€`;
     window.open(`https://wa.me/?text=${message}`, '_blank');
+    
+    const newOrder: Order = {
+      id: Math.random().toString(36).substr(2, 9),
+      room: roomNumber,
+      items: [...cart],
+      total: total,
+      status: 'pending',
+      timestamp: Date.now(),
+      butlerName: selectedButler?.name || 'Unknown'
+    };
+    setOrders(prev => [newOrder, ...prev]);
+    
     setBillItems(prev => [...prev, ...cart]);
     setScreen('thanks');
     setCart([]);
@@ -456,12 +648,25 @@ export default function App() {
         model: "gemini-3-flash-preview",
         contents: text,
         config: {
-          systemInstruction: `You are ${selectedButler?.name}, a luxury hotel butler. Your personality is ${selectedButler?.oxymoron}. You speak ${selectedButler?.lang}. Keep responses short, elegant, and helpful. You are assisting guest in room ${roomNumber}.`,
+          systemInstruction: `You are ${selectedButler?.name}, a luxury hotel butler and expert local concierge. Your personality is ${selectedButler?.oxymoron}. You speak ${selectedButler?.lang}. 
+          Your goal is to assist, entertain, and guide the guest in room ${roomNumber}. 
+          If the guest is bored, suggest local tourism, museums, hidden gems, or current events in the city. 
+          Recommend specific restaurants and cafes. 
+          IMPORTANT: You can issue "Digital Vouchers" for discounts at partner cafes/restaurants. If you recommend a place, offer a voucher code like "BUTLER20" for a 20% discount. 
+          Always ask about the guest's interests to provide personalized suggestions. 
+          Keep responses elegant, helpful, and engaging.
+          
+          If you issue a voucher, format it clearly in your response.`,
         }
       });
       
       const butlerMsg: Message = { role: 'model', text: response.text || "I am at your service." };
       setChatMessages(prev => [...prev, butlerMsg]);
+
+      // Simple logic to "detect" and save voucher
+      if (response.text?.includes('BUTLER20')) {
+        setVouchers(prev => [...prev, { code: 'BUTLER20', place: 'Partner Cafe', discount: '20%' }]);
+      }
     } catch (e) {
       console.error(e);
       setChatMessages(prev => [...prev, { role: 'model', text: "I apologize, I am momentarily unavailable." }]);
@@ -499,15 +704,24 @@ export default function App() {
         </h1>
         <p className="text-slate-500 dark:text-slate-400 font-medium">Exzellenz auf Knopfdruck.</p>
       </div>
-      <button 
-        onClick={() => setScreen('butler')}
-        className="group relative px-12 py-4 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-2xl shadow-lg shadow-amber-500/30 transition-all active:scale-95 overflow-hidden"
-      >
-        <span className="relative z-10 flex items-center gap-2 text-xl">
-          Los geht's! <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
-        </span>
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-      </button>
+      <div className="flex flex-col gap-4 w-full max-w-xs">
+        <button 
+          onClick={() => setScreen('butler')}
+          className="group relative px-12 py-4 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-2xl shadow-lg shadow-amber-500/30 transition-all active:scale-95 overflow-hidden"
+        >
+          <span className="relative z-10 flex items-center gap-2 text-xl justify-center">
+            Los geht's! <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+          </span>
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+        </button>
+        
+        <button 
+          onClick={() => setScreen('staff')}
+          className="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-amber-500 transition-colors flex items-center justify-center gap-2 py-4"
+        >
+          <LayoutDashboard className="w-4 h-4" /> Staff Dashboard
+        </button>
+      </div>
     </motion.div>
   );
 
@@ -539,7 +753,11 @@ export default function App() {
           >
             <ButlerAvatar gender={gender} lang={butler.lang} size="md" />
             <span className="mt-3 font-bold text-sm">{butler.name}</span>
-            <span className="text-xs text-slate-500">{butler.oxymoron}</span>
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-[10px]">{butler.flag}</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{butler.lang}</span>
+            </div>
+            <span className="text-[10px] text-slate-500 mt-1 text-center italic">"{butler.oxymoron}"</span>
           </motion.button>
         ))}
       </div>
@@ -555,6 +773,11 @@ export default function App() {
           >
             <ButlerAvatar gender={gender} lang={butler.lang} size="md" />
             <span className="mt-3 font-bold text-sm text-center">{butler.name}</span>
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-[10px]">{butler.flag}</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{butler.lang}</span>
+            </div>
+            <span className="text-[10px] text-slate-500 mt-1 text-center italic">"{butler.oxymoron}"</span>
           </motion.button>
         ))}
       </div>
@@ -566,18 +789,18 @@ export default function App() {
     const personality = selectedButler?.oxymoron || '';
     
     const messages: Record<string, Record<'room' | 'thanks', string>> = {
-      Pünktlich: { room: 'Effizienz ist der Schlüssel. Welches Zimmer?', thanks: 'Ich bin bereits auf dem Weg. Exakt 12 Minuten.' },
-      Late: { room: 'No rush, darling. Which room are we talking about?', thanks: 'I will be there... eventually. Quality takes time.' },
-      Chaotique: { room: 'Ohlala! Où est votre chambre? Je l\'ai oubliée!', thanks: 'Je cours! Enfin, je crois que c\'est par là!' },
-      Silent: { room: '...', thanks: '...' },
-      Rush: { room: 'Fast! Fast! Room number?!', thanks: 'I am already at your door! Open up!' },
-      Siesta: { room: '¿Qué? Ah, sí... ¿qué habitación?', thanks: 'Después de mi siesta, estaré allí. Despacio.' },
-      Hastig: { room: 'Presto! Presto! Numero di stanza?', thanks: 'Sto volando! Arrivo subito!' },
-      Imperfekt: { room: 'Room... number? Hope I get it right.', thanks: 'I am coming. I might take a wrong turn, but I am coming.' },
-      Calm: { room: 'Respire... qual é o seu quarto?', thanks: 'Tudo bem. Estarei lá com calma e paz.' },
-      Tiny: { room: 'Small room? Big room? Number?', thanks: 'I am coming. I am small, but I am fast.' },
-      Quiet: { room: 'Shhh... room number?', thanks: 'I will be there as quiet as a mouse.' },
-      Loud: { room: 'HELLO! WHAT IS YOUR ROOM NUMBER?!', thanks: 'I AM COMING! YOU WILL HEAR ME!' },
+      'Obsessed with 12-minute precision': { room: 'Effizienz ist der Schlüssel. Welches Zimmer?', thanks: 'Ich bin bereits auf dem Weg. Exakt 12 Minuten.' },
+      'Always 15 minutes late for tea': { room: 'No rush, darling. Which room are we talking about?', thanks: 'I will be there... eventually. Quality takes time.' },
+      'Will forget your room number twice': { room: 'Ohlala! Où est votre chambre? Je l\'ai oubliée!', thanks: 'Je cours! Enfin, je crois que c\'est par là!' },
+      'Silent but judging your decor': { room: '...', thanks: '...' },
+      'Faster than a desert wind': { room: 'I am ready. Your room number?', thanks: 'I am already at your door. Almost.' },
+      'Currently on a 3-hour siesta': { room: 'Mañana... which room?', thanks: 'I will come after my nap. Maybe.' },
+      'Never breaks the spaghetti': { room: 'Mamma mia! Which room is yours?', thanks: 'I am coming! And I bring the passion!' },
+      'Apologizes for 1-second delays': { room: 'Sumimasen! Your room number please!', thanks: 'I am deeply sorry for the wait. I am on my way.' },
+      'Calmer than a Sunday morning': { room: 'Tudo bem. Which room?', thanks: 'Relax, I am coming with the good vibes.' },
+      'Tiny but carries three trunks': { room: 'Room number?', thanks: 'I am coming. Heavy lifting is my specialty.' },
+      'Quieter than a library mouse': { room: 'Room?', thanks: 'On my way.' },
+      'Loudest butler in the East': { room: 'ROOM NUMBER!! PLEASE!!', thanks: 'I AM COMING RIGHT NOW!!' },
     };
 
     return messages[personality]?.[context] || (context === 'room' ? 'Welches Zimmer?' : 'Ich bin unterwegs.');
@@ -619,6 +842,16 @@ export default function App() {
     const hour = new Date().getHours();
     const greeting = hour < 12 ? (lang === 'DE' ? 'Guten Morgen' : 'Good Morning') : hour < 18 ? (lang === 'DE' ? 'Guten Tag' : 'Good Day') : (lang === 'DE' ? 'Guten Abend' : 'Good Evening');
 
+    const categories = ['All', ...Array.from(new Set(MENU.filter(i => i.category !== 'Service' && i.category !== 'Experience').map(i => i.category)))];
+
+    const filteredMenu = MENU.filter(item => {
+      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           item.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
+      const isNotServiceOrExperience = item.category !== 'Service' && item.category !== 'Experience';
+      return matchesSearch && matchesCategory && isNotServiceOrExperience;
+    });
+
     return (
     <div className="min-h-screen pb-48">
       <header className="sticky top-0 z-20 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md p-6 flex flex-col gap-4 border-b border-slate-200 dark:border-slate-800">
@@ -643,6 +876,18 @@ export default function App() {
           </div>
         </div>
 
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input 
+            type="text"
+            placeholder="Search menu..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-sm focus:ring-2 focus:ring-amber-500 outline-none transition-all"
+          />
+        </div>
+
         {/* Tab Toggle */}
         <div className="flex p-1 bg-slate-200 dark:bg-slate-800 rounded-xl">
           <button 
@@ -657,90 +902,143 @@ export default function App() {
           >
             {t.service}
           </button>
+          <button 
+            onClick={() => setMenuTab('concierge')}
+            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${menuTab === 'concierge' ? 'bg-white dark:bg-slate-700 shadow-sm' : 'text-slate-500'}`}
+          >
+            Concierge
+          </button>
         </div>
       </header>
 
       <main className="p-6 space-y-8">
+        {isGoldenHour && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-4 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 rounded-2xl text-white shadow-xl flex items-center justify-between overflow-hidden relative"
+          >
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
+            <div className="relative z-10">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1">The Golden Hour</p>
+              <h4 className="text-lg font-black italic">Exclusive 20% Off Premium Spirits</h4>
+            </div>
+            <div className="relative z-10 bg-white/20 backdrop-blur-md p-2 rounded-xl">
+              <Sparkles className="w-6 h-6 animate-pulse" />
+            </div>
+          </motion.div>
+        )}
+
         <div className="mb-2">
           <h1 className="text-3xl font-black italic uppercase text-slate-800 dark:text-white">{greeting},</h1>
           <p className="text-slate-500 font-medium">{selectedButler?.oxymoron} {t.welcome}.</p>
         </div>
 
-        {menuTab === 'food' ? (
+        {menuTab === 'food' && (
           <>
-            {/* Butler's Choice */}
-            <section>
-              <h3 className="text-xs font-black mb-4 uppercase tracking-widest text-amber-500">Butler's Choice</h3>
-              <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
-                {MENU.filter(item => item.isRecommended).map(item => (
-                  <motion.div 
-                    key={item.id}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => addToCart(item)}
-                    className="flex-shrink-0 w-72 h-48 rounded-[32px] shadow-xl relative overflow-hidden cursor-pointer group"
-                  >
-                    {item.image ? (
-                      <img 
-                        src={item.image} 
-                        alt={item.name} 
-                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 bg-amber-600 flex items-center justify-center">
-                        <Sparkles className="w-12 h-12 text-white/30" />
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                    <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
-                      <h4 className="font-bold text-lg leading-tight mb-1">{item.name}</h4>
-                      <div className="flex justify-between items-center">
-                        <span className="font-black text-xl">{item.price}€</span>
-                        <div className="p-2 bg-amber-500 rounded-full">
-                          <Plus className="w-4 h-4" />
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </section>
+            {/* Category Filter */}
+            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+              {categories.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all ${
+                    selectedCategory === cat 
+                      ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' 
+                      : 'bg-white dark:bg-slate-800 text-slate-500 border border-slate-100 dark:border-slate-700'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
 
-            {['Speisen', 'Getränke'].map(cat => (
-              <section key={cat}>
-                <h3 className="text-xl font-black mb-4 uppercase tracking-wider text-slate-400">{cat}</h3>
-                <div className="space-y-4">
-                  {MENU.filter(item => item.category === cat).map(item => (
+            {/* Experiences Section (Only show if no search or if search matches) */}
+            {searchQuery === '' && selectedCategory === 'All' && (
+              <section>
+                <h3 className="text-xs font-black mb-4 uppercase tracking-widest text-amber-500">Curated Experiences</h3>
+                <div className="flex gap-6 overflow-x-auto pb-6 no-scrollbar snap-x">
+                  {MENU.filter(item => item.category === 'Experience').map(item => (
                     <motion.div 
                       key={item.id}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => addToCart(item)}
-                      className="flex gap-4 p-3 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-3xl shadow-sm border border-white/20 dark:border-slate-700/50 hover:border-amber-500/30 transition-all cursor-pointer"
+                      className="flex-shrink-0 w-[85vw] group relative h-64 rounded-[40px] overflow-hidden shadow-2xl cursor-pointer snap-center"
                     >
-                      <div className="w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0 bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
-                        {item.image ? (
-                          <img src={item.image} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        ) : (
-                          <Sparkles className="w-8 h-8 text-amber-500/50" />
-                        )}
-                      </div>
-                      <div className="flex-1 flex flex-col justify-center">
-                        <h4 className="font-bold text-base leading-tight">{item.name}</h4>
-                        <p className="text-xs text-slate-500 line-clamp-1">{item.description}</p>
-                        <span className="font-black text-amber-500 mt-1">{item.price}€</span>
-                      </div>
-                      <div className="flex items-center pr-2">
-                        <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-400 group-hover:bg-amber-500 group-hover:text-white transition-colors">
-                          <Plus className="w-4 h-4" />
+                      <img 
+                        src={item.image} 
+                        alt={item.name} 
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                      <div className="absolute bottom-0 left-0 right-0 p-8">
+                        <div className="flex justify-between items-end">
+                          <div className="space-y-1">
+                            <h4 className="text-2xl font-black text-white italic uppercase tracking-tight">{item.name}</h4>
+                            <p className="text-amber-200 text-sm font-medium max-w-[80%]">{item.description}</p>
+                          </div>
+                          <div className="bg-amber-500 text-white px-6 py-3 rounded-2xl font-black text-xl shadow-lg">
+                            {item.price}€
+                          </div>
                         </div>
                       </div>
                     </motion.div>
                   ))}
                 </div>
               </section>
-            ))}
+            )}
+
+            {/* Main Menu Grid */}
+            <section>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xs font-black uppercase tracking-widest text-amber-500">
+                  {selectedCategory === 'All' ? 'Full Menu' : selectedCategory}
+                </h3>
+                <span className="text-[10px] font-bold text-slate-400">{filteredMenu.length} Items</span>
+              </div>
+              <div className="grid grid-cols-1 gap-6">
+                {filteredMenu.map(item => (
+                  <motion.div 
+                    key={item.id}
+                    layout
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex gap-4 p-4 bg-white dark:bg-slate-800 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700/50"
+                  >
+                    <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                      {item.image ? (
+                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <Sparkles className="w-8 h-8 text-amber-500/50" />
+                      )}
+                    </div>
+                    <div className="flex-1 flex flex-col justify-between py-1">
+                      <div>
+                        <div className="flex justify-between items-start">
+                          <h4 className="font-bold text-slate-800 dark:text-white">{item.name}</h4>
+                          {item.isRecommended && <Sparkles className="w-4 h-4 text-amber-500" />}
+                        </div>
+                        <p className="text-xs text-slate-500 line-clamp-2 mt-1">{item.description}</p>
+                      </div>
+                      <div className="flex justify-between items-center mt-2">
+                        <span className="font-black text-amber-500">{item.price}€</span>
+                        <button 
+                          onClick={() => addToCart(item)}
+                          className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-amber-500 hover:text-white transition-all active:scale-90"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </section>
           </>
-        ) : (
+        )}
+
+        {menuTab === 'service' && (
           <div className="space-y-8">
             {/* Mood Control */}
             <section>
@@ -803,6 +1101,63 @@ export default function App() {
             </section>
           </div>
         )}
+
+        {menuTab === 'concierge' && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-8"
+          >
+            <section className="p-6 bg-gradient-to-br from-amber-500 to-amber-600 rounded-[32px] text-white shadow-xl">
+              <h3 className="text-2xl font-black italic uppercase mb-2">Virtual Concierge</h3>
+              <p className="text-amber-100 text-sm mb-6">I am here to guide you through the city's best kept secrets.</p>
+              <button 
+                onClick={() => setIsChatOpen(true)}
+                className="w-full py-4 bg-white text-amber-600 font-black rounded-2xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                <MessageSquare className="w-6 h-6" /> Talk to me
+              </button>
+            </section>
+
+            <section>
+              <h3 className="text-xs font-black mb-4 uppercase tracking-widest text-amber-500">Local Highlights</h3>
+              <div className="grid grid-cols-1 gap-4">
+                {[
+                  { title: "Museum of Modern Art", desc: "Just 10 mins walk. Current exhibit: 'Digital Dreams'", icon: "🎨" },
+                  { title: "The Secret Garden Cafe", desc: "Best espresso in the city. Use your voucher!", icon: "☕" },
+                  { title: "Riverside Night Market", desc: "Authentic street food and live music tonight.", icon: "🌃" }
+                ].map((item, i) => (
+                  <div key={i} className="p-4 bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 flex items-center gap-4 shadow-sm">
+                    <div className="text-3xl">{item.icon}</div>
+                    <div>
+                      <h4 className="font-bold">{item.title}</h4>
+                      <p className="text-xs text-slate-500">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {vouchers.length > 0 && (
+              <section>
+                <h3 className="text-xs font-black mb-4 uppercase tracking-widest text-amber-500">My Vouchers</h3>
+                <div className="space-y-3">
+                  {vouchers.map((v, i) => (
+                    <div key={i} className="p-4 bg-amber-50 dark:bg-amber-900/20 border-2 border-dashed border-amber-500 rounded-3xl flex justify-between items-center">
+                      <div>
+                        <p className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase">{v.place}</p>
+                        <p className="text-xl font-black">{v.discount} OFF</p>
+                      </div>
+                      <div className="bg-amber-500 text-white px-4 py-2 rounded-xl font-mono font-bold">
+                        {v.code}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </motion.div>
+        )}
       </main>
 
       {/* Pillow Menu Modal */}
@@ -863,31 +1218,35 @@ export default function App() {
             {/* Handle/Header */}
             <div 
               onClick={() => setIsCartExpanded(!isCartExpanded)}
-              className="p-4 flex justify-between items-center cursor-pointer"
+              className="p-4 flex flex-col items-center cursor-pointer border-b border-slate-100 dark:border-slate-700/50"
             >
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <ShoppingCart className="w-6 h-6 text-amber-500" />
-                  <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
-                    {cart.reduce((s, i) => s + i.quantity, 0)}
-                  </span>
+              <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mb-4" />
+              <div className="w-full flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <ShoppingCart className="w-6 h-6 text-amber-500" />
+                    <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
+                      {cart.reduce((s, i) => s + i.quantity, 0)}
+                    </span>
+                  </div>
+                  <span className="font-bold">Deine Bestellung</span>
                 </div>
-                <span className="font-bold">Deine Bestellung</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="text-xl font-black text-amber-500">{total}€</span>
-                {isCartExpanded ? (
-                  <button onClick={(e) => { e.stopPropagation(); setIsCartExpanded(false); }} className="p-1 rounded-full bg-slate-100 dark:bg-slate-700">
-                    <X className="w-5 h-5" />
-                  </button>
-                ) : (
-                  <div className="w-8 h-1 bg-slate-300 rounded-full" />
-                )}
+                <div className="flex items-center gap-4">
+                  <span className="text-xl font-black text-amber-500">{total}€</span>
+                  {isCartExpanded && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setIsCartExpanded(false); }} 
+                      className="p-2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-amber-500 transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Expanded Content */}
-            <div className="px-6 pb-8 max-h-[60vh] overflow-y-auto">
+            <div className="px-6 pt-6 pb-12 max-h-[60vh] overflow-y-auto">
               <div className="space-y-4 mb-8">
                 {cart.map(item => (
                   <div key={item.id} className="flex justify-between items-center">
@@ -923,9 +1282,16 @@ export default function App() {
 
               <button 
                 onClick={handleCheckout}
-                className="w-full py-4 bg-green-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 active:scale-95 transition-all"
+                className="w-full py-4 bg-green-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-green-500/20 active:scale-95 transition-all mb-4"
               >
                 Bestellung via WhatsApp <ChevronRight className="w-5 h-5" />
+              </button>
+
+              <button 
+                onClick={() => setIsCartExpanded(false)}
+                className="w-full py-3 text-slate-400 font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+              >
+                <X className="w-3 h-3" /> Schließen
               </button>
             </div>
           </motion.div>
@@ -933,6 +1299,29 @@ export default function App() {
       </AnimatePresence>
     </div>
     );
+  };
+
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
+  const handleUnlock = async () => {
+    if (isUnlocked) return;
+    setIsUnlocking(true);
+    
+    // Simulate NFC interaction
+    if ('vibrate' in navigator) {
+      navigator.vibrate([100, 50, 100]);
+    }
+
+    setTimeout(() => {
+      setIsUnlocking(false);
+      setIsUnlocked(true);
+      if ('vibrate' in navigator) {
+        navigator.vibrate(200);
+      }
+      // Reset after 3 seconds
+      setTimeout(() => setIsUnlocked(false), 3000);
+    }, 2000);
   };
 
   const renderKey = () => (
@@ -954,23 +1343,42 @@ export default function App() {
 
       <motion.div 
         className="relative w-64 h-64 flex items-center justify-center"
-        animate={{ scale: [1, 1.05, 1] }}
-        transition={{ duration: 3, repeat: Infinity }}
+        animate={isUnlocked ? { scale: [1, 1.1, 1] } : { scale: [1, 1.05, 1] }}
+        transition={{ duration: isUnlocked ? 0.5 : 3, repeat: isUnlocked ? 0 : Infinity }}
       >
-        <div className="absolute inset-0 bg-amber-500/20 rounded-full blur-3xl animate-pulse" />
-        <div className="relative w-48 h-48 bg-gradient-to-br from-amber-400 to-amber-600 rounded-3xl shadow-2xl flex items-center justify-center border-4 border-white/20">
-          <Key className="w-24 h-24 text-white" />
-        </div>
+        <div className={`absolute inset-0 rounded-full blur-3xl transition-all duration-500 ${isUnlocked ? 'bg-green-500/40' : 'bg-amber-500/20 animate-pulse'}`} />
+        <motion.div 
+          className={`relative w-48 h-48 rounded-3xl shadow-2xl flex items-center justify-center border-4 border-white/20 transition-all duration-500 ${
+            isUnlocked ? 'bg-gradient-to-br from-green-400 to-green-600' : 'bg-gradient-to-br from-amber-400 to-amber-600'
+          }`}
+        >
+          {isUnlocked ? (
+            <Unlock className="w-24 h-24 text-white" />
+          ) : (
+            <Key className="w-24 h-24 text-white" />
+          )}
+        </motion.div>
       </motion.div>
 
       <div className="space-y-4 w-full max-w-xs">
         <motion.button 
           whileTap={{ scale: 0.95 }}
-          className="w-full py-6 bg-slate-900 dark:bg-white dark:text-slate-900 text-white font-black rounded-2xl shadow-xl flex items-center justify-center gap-3"
+          onMouseDown={handleUnlock}
+          onTouchStart={handleUnlock}
+          disabled={isUnlocking || isUnlocked}
+          className={`w-full py-6 font-black rounded-2xl shadow-xl flex items-center justify-center gap-3 transition-all ${
+            isUnlocked 
+              ? 'bg-green-500 text-white' 
+              : isUnlocking 
+                ? 'bg-amber-500 text-white animate-pulse' 
+                : 'bg-slate-900 dark:bg-white dark:text-slate-900 text-white'
+          }`}
         >
-          HOLD TO UNLOCK
+          {isUnlocked ? 'ROOM UNLOCKED' : isUnlocking ? 'COMMUNICATING...' : 'HOLD TO UNLOCK'}
         </motion.button>
-        <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">NFC Active</p>
+        <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">
+          {isUnlocked ? 'Access Granted' : 'NFC Active • Proximity Required'}
+        </p>
       </div>
     </motion.div>
   );
@@ -1063,11 +1471,31 @@ export default function App() {
 
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {chatMessages.length === 0 && (
-              <div className="text-center py-12 space-y-4">
-                <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto">
-                  <MessageSquare className="w-8 h-8 text-amber-500" />
+              <div className="text-center py-12 space-y-6">
+                <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto">
+                  <Sparkles className="w-10 h-10 text-amber-500 animate-pulse" />
                 </div>
-                <p className="text-slate-400 italic">How can I assist you today?</p>
+                <div className="space-y-2">
+                  <p className="text-lg font-bold">Your Personal Concierge</p>
+                  <p className="text-slate-400 italic text-sm">"I can recommend the best local spots, issue exclusive vouchers, or simply keep you entertained."</p>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-2 max-w-xs mx-auto">
+                  {[
+                    "What's happening in the city tonight?",
+                    "Recommend a cozy cafe nearby",
+                    "I'm bored, tell me something interesting",
+                    "Any exclusive discounts for guests?"
+                  ].map((suggestion, i) => (
+                    <button 
+                      key={i}
+                      onClick={() => handleSendMessage(suggestion)}
+                      className="text-xs p-3 bg-slate-100 dark:bg-slate-800 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600 transition-all text-left border border-transparent hover:border-amber-500/30"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
             {chatMessages.map((msg, idx) => (
@@ -1077,12 +1505,24 @@ export default function App() {
                 animate={{ opacity: 1, x: 0 }}
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                <div className={`max-w-[80%] p-4 rounded-2xl font-medium ${
+                <div className={`max-w-[85%] p-4 rounded-2xl font-medium shadow-sm ${
                   msg.role === 'user' 
                     ? 'bg-amber-500 text-white rounded-tr-none' 
-                    : 'bg-white dark:bg-slate-800 shadow-sm rounded-tl-none border border-slate-100 dark:border-slate-700'
+                    : 'bg-white dark:bg-slate-800 rounded-tl-none border border-slate-100 dark:border-slate-700'
                 }`}>
-                  {msg.text}
+                  {msg.text.includes('BUTLER20') ? (
+                    <div className="space-y-3">
+                      <p>{msg.text.split('BUTLER20')[0]}</p>
+                      <div className="p-4 bg-amber-500/10 border-2 border-dashed border-amber-500 rounded-xl text-center">
+                        <p className="text-[10px] uppercase font-black tracking-widest text-amber-600 dark:text-amber-400 mb-1">Exclusive Voucher</p>
+                        <p className="text-2xl font-black text-amber-600 dark:text-amber-400">BUTLER20</p>
+                        <p className="text-[10px] text-slate-500 mt-1">Present this code for 20% off</p>
+                      </div>
+                      <p>{msg.text.split('BUTLER20')[1]}</p>
+                    </div>
+                  ) : (
+                    msg.text
+                  )}
                 </div>
               </motion.div>
             ))}
@@ -1127,11 +1567,11 @@ export default function App() {
     const t = TRANSLATIONS[lang];
     
     const statusSteps = [
-      { label: lang === 'DE' ? 'Bestellung erhalten' : 'Order Received', min: 0 },
-      { label: lang === 'DE' ? 'In Vorbereitung' : 'Preparing', min: 25 },
-      { label: lang === 'DE' ? 'Qualitätskontrolle' : 'Quality Check', min: 50 },
-      { label: lang === 'DE' ? 'Auf dem Weg' : 'On the Way', min: 75 },
-      { label: lang === 'DE' ? 'Ankunft' : 'Arrived', min: 100 },
+      { label: lang === 'DE' ? 'Bestellung erhalten' : 'Order Received', min: 0, detail: lang === 'DE' ? 'Wir haben Ihre Wünsche notiert.' : 'We have noted your requests.' },
+      { label: lang === 'DE' ? 'In Vorbereitung' : 'Preparing', min: 25, detail: lang === 'DE' ? `${selectedButler?.name} wählt die feinsten Zutaten aus.` : `${selectedButler?.name} is selecting the finest ingredients.` },
+      { label: lang === 'DE' ? 'Qualitätskontrolle' : 'Quality Check', min: 50, detail: lang === 'DE' ? 'Das Silber wird poliert.' : 'The silver is being polished.' },
+      { label: lang === 'DE' ? 'Auf dem Weg' : 'On the Way', min: 75, detail: lang === 'DE' ? 'Ihr Butler ist im Aufzug.' : 'Your butler is in the elevator.' },
+      { label: lang === 'DE' ? 'Ankunft' : 'Arrived', min: 100, detail: lang === 'DE' ? 'Es klopft an der Tür.' : 'A knock at the door.' },
     ];
 
     const currentStep = [...statusSteps].reverse().find(s => orderProgress >= s.min) || statusSteps[0];
@@ -1155,9 +1595,12 @@ export default function App() {
       </div>
       <div className="space-y-4 w-full">
         <h2 className="text-3xl font-black italic uppercase text-amber-500">{t.thanks}!</h2>
-        <p className="text-xl font-medium italic">
-          "{getButlerMessage('thanks')}"
-        </p>
+        <div className="space-y-1">
+          <p className="text-xl font-medium italic">
+            "{getButlerMessage('thanks')}"
+          </p>
+          <p className="text-amber-500 font-bold text-sm animate-pulse">{currentStep.detail}</p>
+        </div>
         <p className="text-sm text-slate-500 mt-2">Zimmer {roomNumber}</p>
         
         {/* Live Tracker */}
@@ -1179,6 +1622,35 @@ export default function App() {
             ))}
           </div>
         </div>
+
+        {/* Last Minute Upsell */}
+        {orderProgress < 50 && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-12 p-6 bg-white dark:bg-slate-800 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm max-w-md mx-auto"
+          >
+            <h4 className="text-xs font-black uppercase tracking-widest text-amber-500 mb-4">Last Minute Addition?</h4>
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-2xl">
+                🥐
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-bold text-sm">Artisanal Bread Basket</p>
+                <p className="text-xs text-slate-500">Warm, house-made selection.</p>
+              </div>
+              <button 
+                onClick={() => {
+                  addToCart({ id: 'upsell-1', name: 'Artisanal Bread Basket', description: 'Warm selection', price: 12, category: 'Speisen' });
+                  setScreen('menu');
+                }}
+                className="px-4 py-2 bg-amber-500 text-white text-xs font-bold rounded-xl"
+              >
+                + 12€
+              </button>
+            </div>
+          </motion.div>
+        )}
       </div>
       <div className="pt-8 space-y-4 w-full max-w-xs">
         <p className="text-sm text-slate-500">{lang === 'DE' ? 'Möchtest du dir die Wartezeit verkürzen?' : 'Want to pass the time?'}</p>
@@ -1201,6 +1673,161 @@ export default function App() {
 
   const renderTetris = () => {
     return <TetrisGame onBack={() => setScreen('thanks')} />;
+  };
+
+  const renderStaffDashboard = () => {
+    const updateOrderStatus = (id: string, status: Order['status']) => {
+      setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+    };
+
+    const stats = {
+      pending: orders.filter(o => o.status === 'pending').length,
+      preparing: orders.filter(o => o.status === 'preparing').length,
+      total: orders.length,
+      revenue: orders.reduce((sum, o) => sum + o.total, 0)
+    };
+
+    return (
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-screen bg-slate-100 dark:bg-slate-950 p-6"
+      >
+        <header className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+              <LayoutDashboard className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black uppercase tracking-tight">BOH Terminal</h2>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Back of House • Live</p>
+            </div>
+          </div>
+          <button onClick={() => setScreen('landing')} className="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+            <LogOut className="w-6 h-6 text-slate-400" />
+          </button>
+        </header>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {[
+            { label: 'New Orders', value: stats.pending, icon: Bell, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+            { label: 'In Progress', value: stats.preparing, icon: Clock, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+            { label: 'Total Served', value: stats.total, icon: Check, color: 'text-green-500', bg: 'bg-green-500/10' },
+            { label: 'Revenue', value: `${stats.revenue}€`, icon: Receipt, color: 'text-purple-500', bg: 'bg-purple-500/10' }
+          ].map((stat, i) => (
+            <div key={i} className="bg-white dark:bg-slate-900 p-4 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800">
+              <div className={`w-10 h-10 ${stat.bg} rounded-xl flex items-center justify-center mb-3`}>
+                <stat.icon className={`w-5 h-5 ${stat.color}`} />
+              </div>
+              <p className="text-2xl font-black">{stat.value}</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Orders List */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-black uppercase tracking-widest text-xs text-slate-500">Active Requests</h3>
+            <div className="flex gap-2">
+              <button className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800"><Filter className="w-4 h-4" /></button>
+              <button className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800"><Search className="w-4 h-4" /></button>
+            </div>
+          </div>
+
+          <AnimatePresence>
+            {orders.length === 0 ? (
+              <div className="py-20 text-center">
+                <ClipboardList className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-400 font-bold">No active orders</p>
+              </div>
+            ) : (
+              orders.map((order) => (
+                <motion.div 
+                  key={order.id}
+                  layout
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="bg-white dark:bg-slate-900 rounded-[32px] p-6 shadow-sm border border-slate-200 dark:border-slate-800"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-xl font-black">
+                        {order.room}
+                      </div>
+                      <div>
+                        <p className="font-black text-lg">Room {order.room}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          {new Date(order.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Butler: {order.butlerName}
+                        </p>
+                      </div>
+                    </div>
+                    <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                      order.status === 'pending' ? 'bg-amber-500/10 text-amber-500' :
+                      order.status === 'preparing' ? 'bg-blue-500/10 text-blue-500' :
+                      order.status === 'delivering' ? 'bg-purple-500/10 text-purple-500' :
+                      'bg-green-500/10 text-green-500'
+                    }`}>
+                      {order.status}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 mb-6">
+                    {order.items.map((item, i) => (
+                      <div key={i} className="flex justify-between text-sm">
+                        <span className="text-slate-500"><span className="font-bold text-slate-900 dark:text-white">{item.quantity}x</span> {item.name}</span>
+                        <span className="font-bold">{item.price * item.quantity}€</span>
+                      </div>
+                    ))}
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between font-black">
+                      <span>Total</span>
+                      <span className="text-amber-500">{order.total}€</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {order.status === 'pending' && (
+                      <button 
+                        onClick={() => updateOrderStatus(order.id, 'preparing')}
+                        className="col-span-2 py-3 bg-slate-900 dark:bg-white dark:text-slate-900 text-white font-black rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Clock className="w-4 h-4" /> START PREPARING
+                      </button>
+                    )}
+                    {order.status === 'preparing' && (
+                      <button 
+                        onClick={() => updateOrderStatus(order.id, 'delivering')}
+                        className="col-span-2 py-3 bg-blue-500 text-white font-black rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Truck className="w-4 h-4" /> OUT FOR DELIVERY
+                      </button>
+                    )}
+                    {order.status === 'delivering' && (
+                      <button 
+                        onClick={() => updateOrderStatus(order.id, 'completed')}
+                        className="col-span-2 py-3 bg-green-500 text-white font-black rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Check className="w-4 h-4" /> MARK COMPLETED
+                      </button>
+                    )}
+                    {order.status === 'completed' && (
+                      <button 
+                        disabled
+                        className="col-span-2 py-3 bg-slate-100 dark:bg-slate-800 text-slate-400 font-black rounded-xl flex items-center justify-center gap-2"
+                      >
+                        <Check className="w-4 h-4" /> ORDER SERVED
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.div>
+    );
   };
 
   const moodColors: Record<string, string> = {
@@ -1248,6 +1875,7 @@ export default function App() {
         {screen === 'tetris' && renderTetris()}
         {screen === 'key' && renderKey()}
         {screen === 'bill' && renderBill()}
+        {screen === 'staff' && renderStaffDashboard()}
       </AnimatePresence>
 
       {renderChat()}
