@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Butler Brigade - Luxury Room Service</title>
+    <!-- 
+      PWA Manifest (Example)
+      {
+        "name": "Butler Brigade",
+        "short_name": "Butler",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#0f172a",
+        "theme_color": "#f59e0b",
+        "icons": [
+          { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },
+          { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512" }
+        ]
+      }
+    -->
+    <!-- 
+      Service Worker Registration (Example)
+      <script>
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js');
+          });
+        }
+      </script>
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
