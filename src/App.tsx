@@ -374,6 +374,7 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [billItems, setBillItems] = useState<CartItem[]>([]);
+  const [isNavHidden, setIsNavHidden] = useState(false);
 
   // Persistence
   useEffect(() => {
@@ -1254,41 +1255,62 @@ export default function App() {
       {/* Premium Bottom Navigation */}
       {['menu', 'thanks', 'key', 'bill'].includes(screen) && (
         <div className="fixed bottom-0 left-0 right-0 p-6 z-50 pointer-events-none">
-          <motion.nav 
-            initial={{ y: 100 }}
-            animate={{ y: 0 }}
-            className="max-w-md mx-auto h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-[32px] shadow-2xl border border-white/20 dark:border-slate-700/50 flex items-center justify-around px-4 pointer-events-auto"
-          >
-            {[
-              { id: 'menu', icon: Home, label: 'Home' },
-              { id: 'key', icon: Key, label: 'Key' },
-              { id: 'chat', icon: MessageSquare, label: 'Chat', special: true },
-              { id: 'bill', icon: Receipt, label: 'Bill' },
-              { id: 'thanks', icon: Sparkles, label: 'Status' }
-            ].map((item) => (
-              <button 
-                key={item.id}
-                onClick={() => {
-                  if (item.id === 'chat') {
-                    setIsChatOpen(true);
-                  } else {
-                    setScreen(item.id as any);
-                  }
-                  vibrate();
-                }}
-                className={`flex flex-col items-center gap-1 transition-all ${
-                  (screen === item.id || (item.id === 'chat' && isChatOpen)) 
-                    ? 'text-amber-500 scale-110' 
-                    : 'text-slate-400'
-                }`}
+          <AnimatePresence>
+            {!isNavHidden ? (
+              <motion.nav 
+                initial={{ y: 100, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 100, opacity: 0 }}
+                className="max-w-md mx-auto h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-[32px] shadow-2xl border border-white/20 dark:border-slate-700/50 flex items-center justify-around px-4 pointer-events-auto relative"
               >
-                <div className={`p-2 rounded-2xl ${item.special ? 'bg-amber-500 text-white shadow-lg -mt-8' : ''}`}>
-                  <item.icon className="w-6 h-6" />
-                </div>
-                {!item.special && <span className="text-[10px] font-black uppercase tracking-tighter">{item.label}</span>}
-              </button>
-            ))}
-          </motion.nav>
+                {/* Close Button */}
+                <button 
+                  onClick={() => setIsNavHidden(true)}
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-slate-200 dark:bg-slate-700 text-slate-500 rounded-full flex items-center justify-center shadow-md active:scale-90 transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+
+                {[
+                  { id: 'menu', icon: Home, label: 'Home' },
+                  { id: 'key', icon: Key, label: 'Key' },
+                  { id: 'chat', icon: MessageSquare, label: 'Chat', special: true },
+                  { id: 'bill', icon: Receipt, label: 'Bill' },
+                  { id: 'thanks', icon: Sparkles, label: 'Status' }
+                ].map((item) => (
+                  <button 
+                    key={item.id}
+                    onClick={() => {
+                      if (item.id === 'chat') {
+                        setIsChatOpen(true);
+                      } else {
+                        setScreen(item.id as any);
+                      }
+                      vibrate();
+                    }}
+                    className={`flex flex-col items-center gap-1 transition-all ${
+                      (screen === item.id || (item.id === 'chat' && isChatOpen)) 
+                        ? 'text-amber-500 scale-110' 
+                        : 'text-slate-400'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-2xl ${item.special ? 'bg-amber-500 text-white shadow-lg -mt-8' : ''}`}>
+                      <item.icon className="w-6 h-6" />
+                    </div>
+                    {!item.special && <span className="text-[10px] font-black uppercase tracking-tighter">{item.label}</span>}
+                  </button>
+                ))}
+              </motion.nav>
+            ) : (
+              <motion.button
+                initial={{ y: 100, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                onClick={() => setIsNavHidden(false)}
+                className="max-w-xs mx-auto h-2 bg-slate-300 dark:bg-slate-700 rounded-full pointer-events-auto active:scale-95 transition-all"
+                style={{ width: '40px' }}
+              />
+            )}
+          </AnimatePresence>
         </div>
       )}
 
