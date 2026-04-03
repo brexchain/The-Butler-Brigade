@@ -551,6 +551,7 @@ export default function App() {
   const [notification, setNotification] = useState<{name: string} | null>(null);
   const [hotelLogo, setHotelLogo] = useState<string | null>(null);
   const [whatsappNumber, setWhatsappNumber] = useState<string>('');
+  const [lastAddedId, setLastAddedId] = useState<string | null>(null);
   const [customMenu, setCustomMenu] = useState<(MenuItem & { image?: string })[]>(MENU);
   const [staffPin, setStaffPin] = useState('');
   const [showPinModal, setShowPinModal] = useState(false);
@@ -626,8 +627,12 @@ export default function App() {
   const addToCart = (item: MenuItem) => {
     vibrate();
     playSound('add');
+    setLastAddedId(item.id);
     setNotification({ name: item.name });
-    setTimeout(() => setNotification(null), 2000);
+    setTimeout(() => {
+      setNotification(null);
+      setLastAddedId(null);
+    }, 1500);
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id);
       if (existing) {
@@ -1193,8 +1198,14 @@ export default function App() {
                               <h4 className="text-2xl font-black text-white italic uppercase tracking-tight">{item.name}</h4>
                               <p className="text-amber-200 text-xs font-medium max-w-[80%] line-clamp-2">{item.description}</p>
                             </div>
-                            <div className="bg-amber-500 text-white px-5 py-2 rounded-2xl font-black text-lg shadow-lg">
-                              {item.price}€
+                            <div className={`transition-all duration-300 ${lastAddedId === item.id ? 'bg-green-500 scale-110' : 'bg-amber-500'} text-white px-5 py-2 rounded-2xl font-black text-lg shadow-lg flex items-center gap-2`}>
+                              {lastAddedId === item.id ? (
+                                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                                  <Check className="w-5 h-5" />
+                                </motion.div>
+                              ) : (
+                                <span>{item.price}€</span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1220,14 +1231,34 @@ export default function App() {
                     layout
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="flex gap-4 p-4 bg-white dark:bg-slate-800 rounded-[32px] shadow-sm border border-slate-100 dark:border-slate-700/50"
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => addToCart(item)}
+                    className={`flex gap-4 p-4 bg-white dark:bg-slate-800 rounded-[32px] shadow-sm border transition-all cursor-pointer ${lastAddedId === item.id ? 'border-green-500/50 ring-2 ring-green-500/10' : 'border-slate-100 dark:border-slate-700/50'}`}
                   >
-                    <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                    <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-slate-100 dark:bg-slate-700 flex items-center justify-center relative">
                       {item.image ? (
                         <img src={item.image} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
                         <Sparkles className="w-8 h-8 text-amber-500/50" />
                       )}
+                      <AnimatePresence>
+                        {lastAddedId === item.id && (
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.5 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.5 }}
+                            className="absolute inset-0 bg-green-500/20 backdrop-blur-[2px] flex items-center justify-center"
+                          >
+                            <motion.div
+                              initial={{ y: 10, opacity: 0 }}
+                              animate={{ y: 0, opacity: 1 }}
+                              className="bg-white rounded-full p-2 shadow-lg"
+                            >
+                              <Check className="w-6 h-6 text-green-500" />
+                            </motion.div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                     <div className="flex-1 flex flex-col justify-between py-1">
                       <div>
@@ -1239,12 +1270,11 @@ export default function App() {
                       </div>
                       <div className="flex justify-between items-center mt-2">
                         <span className="font-black text-amber-500">{item.price}€</span>
-                        <button 
-                          onClick={() => addToCart(item)}
-                          className="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl hover:bg-amber-500 hover:text-white transition-all active:scale-90"
+                        <div 
+                          className={`p-2 rounded-xl transition-all ${lastAddedId === item.id ? 'bg-green-500 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}
                         >
-                          <Plus className="w-4 h-4" />
-                        </button>
+                          {lastAddedId === item.id ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -1299,18 +1329,26 @@ export default function App() {
                     key={item.id}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => addToCart(item)}
-                    className="p-4 bg-white dark:bg-slate-800 rounded-3xl shadow-sm flex flex-col items-center text-center gap-2 border border-transparent hover:border-amber-500/30 transition-all cursor-pointer"
+                    className={`p-4 bg-white dark:bg-slate-800 rounded-3xl shadow-sm flex flex-col items-center text-center gap-2 border transition-all cursor-pointer ${lastAddedId === item.id ? 'border-green-500 ring-2 ring-green-500/10' : 'border-transparent hover:border-amber-500/30'}`}
                   >
-                    <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-amber-500">
-                      {item.id === 's1' && <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16v16H4zM4 8h16M4 12h16M4 16h16" /></svg>}
-                      {item.id === 's2' && <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12l-9-9-9 9 9 9 9-9z" /></svg>}
-                      {item.id === 's3' && <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM5.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM12 13V4M12 4L9 7M12 4l3 3" /></svg>}
-                      {item.id === 's4' && <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>}
-                      {item.id === 's5' && <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>}
-                      {item.id === 's6' && <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>}
+                    <div className={`w-12 h-12 ${lastAddedId === item.id ? 'bg-green-100 dark:bg-green-900/30 text-green-500' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-500'} rounded-2xl flex items-center justify-center transition-colors`}>
+                      {lastAddedId === item.id ? (
+                        <Check className="w-6 h-6" />
+                      ) : (
+                        <>
+                          {item.id === 's1' && <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16v16H4zM4 8h16M4 12h16M4 16h16" /></svg>}
+                          {item.id === 's2' && <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12l-9-9-9 9 9 9 9-9z" /></svg>}
+                          {item.id === 's3' && <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM5.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM12 13V4M12 4L9 7M12 4l3 3" /></svg>}
+                          {item.id === 's4' && <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>}
+                          {item.id === 's5' && <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>}
+                          {item.id === 's6' && <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>}
+                        </>
+                      )}
                     </div>
                     <h4 className="font-bold text-sm leading-tight">{item.name}</h4>
-                    <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest">{item.price === 0 ? 'Kostenlos' : `${item.price}€`}</span>
+                    <span className={`text-[10px] uppercase font-black tracking-widest transition-colors ${lastAddedId === item.id ? 'text-green-500' : 'text-slate-500'}`}>
+                      {lastAddedId === item.id ? 'Hinzugefügt!' : (item.price === 0 ? 'Kostenlos' : `${item.price}€`)}
+                    </span>
                   </motion.div>
                 ))}
               </div>
