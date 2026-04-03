@@ -39,7 +39,9 @@ import {
   Check,
   Clock,
   Truck,
-  MoreVertical
+  MoreVertical,
+  ShieldCheck,
+  Lock
 } from 'lucide-react';
 
 // --- Types ---
@@ -524,7 +526,7 @@ const TetrisGame = ({ onBack }: { onBack: () => void }) => {
 };
 
 export default function App() {
-  const [screen, setScreen] = useState<'landing' | 'butler' | 'room' | 'menu' | 'thanks' | 'tetris' | 'key' | 'bill' | 'staff'>('landing');
+  const [screen, setScreen] = useState<'landing' | 'butler' | 'room' | 'menu' | 'thanks' | 'tetris' | 'key' | 'bill' | 'staff' | 'admin'>('landing');
   const [menuTab, setMenuTab] = useState<'food' | 'service' | 'concierge'>('food');
   const [showPillowMenu, setShowPillowMenu] = useState(false);
   const [selectedButler, setSelectedButler] = useState<Butler | null>(null);
@@ -533,7 +535,6 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [gender, setGender] = useState<Gender>('male');
   const [isCartExpanded, setIsCartExpanded] = useState(false);
-  const [orderProgress, setOrderProgress] = useState(0);
   const [currentMood, setCurrentMood] = useState('relax');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
@@ -542,9 +543,26 @@ export default function App() {
   const [isNavHidden, setIsNavHidden] = useState(false);
   const [vouchers, setVouchers] = useState<{code: string, place: string, discount: string}[]>([]);
   const [isGoldenHour, setIsGoldenHour] = useState(false);
+  const [goldenHourDiscount, setGoldenHourDiscount] = useState(20);
+  const [roomMood, setRoomMood] = useState<'Relax' | 'Party' | 'Work' | 'Sleep'>('Relax');
   const [orders, setOrders] = useState<Order[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [notification, setNotification] = useState<{name: string} | null>(null);
+  const [hotelLogo, setHotelLogo] = useState<string | null>(null);
+  const [whatsappNumber, setWhatsappNumber] = useState<string>('');
+  const [customMenu, setCustomMenu] = useState<(MenuItem & { image?: string })[]>(MENU);
+  const [staffPin, setStaffPin] = useState('');
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinError, setPinError] = useState(false);
+
+  const CORRECT_PIN = '1234';
+
+  const playSound = (type: 'add' | 'status') => {
+    const audio = new Audio(type === 'add' ? 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3' : 'https://assets.mixkit.co/active_storage/sfx/2570/2570-preview.mp3');
+    audio.volume = 0.2;
+    audio.play().catch(() => {}); // Ignore autoplay errors
+  };
 
   // Golden Hour Logic (Simulated for demo)
   useEffect(() => {
@@ -564,6 +582,12 @@ export default function App() {
         setIsDarkMode(parsed.isDarkMode ?? true);
         setGender(parsed.gender ?? 'male');
         if (parsed.orders) setOrders(parsed.orders);
+        if (parsed.hotelLogo) setHotelLogo(parsed.hotelLogo);
+        if (parsed.whatsappNumber) setWhatsappNumber(parsed.whatsappNumber);
+        if (parsed.isGoldenHour !== undefined) setIsGoldenHour(parsed.isGoldenHour);
+        if (parsed.goldenHourDiscount) setGoldenHourDiscount(parsed.goldenHourDiscount);
+        if (parsed.customMenu) setCustomMenu(parsed.customMenu);
+        if (parsed.billItems) setBillItems(parsed.billItems);
       } catch (e) {
         console.error("Failed to parse state", e);
       }
@@ -571,7 +595,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('butler_brigade_state', JSON.stringify({ isDarkMode, gender, orders }));
+    localStorage.setItem('butler_brigade_state', JSON.stringify({ 
+      isDarkMode, 
+      gender, 
+      orders, 
+      hotelLogo, 
+      whatsappNumber,
+      isGoldenHour,
+      goldenHourDiscount,
+      customMenu,
+      billItems 
+    }));
     // Apply dark mode class to both html and body for maximum compatibility
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -591,6 +625,9 @@ export default function App() {
 
   const addToCart = (item: MenuItem) => {
     vibrate();
+    playSound('add');
+    setNotification({ name: item.name });
+    setTimeout(() => setNotification(null), 2000);
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id);
       if (existing) {
@@ -617,7 +654,8 @@ export default function App() {
   const handleCheckout = () => {
     const orderText = cart.map(i => `${i.quantity}x ${i.name}`).join('%0A');
     const message = `Hallo ${selectedButler?.name}, ich möchte gerne bestellen für Zimmer ${roomNumber}:%0A%0A${orderText}%0A%0AGesamt: ${total}€`;
-    window.open(`https://wa.me/?text=${message}`, '_blank');
+    const cleanNumber = whatsappNumber.replace(/\D/g, '');
+    window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
     
     const newOrder: Order = {
       id: Math.random().toString(36).substr(2, 9),
@@ -633,7 +671,6 @@ export default function App() {
     setBillItems(prev => [...prev, ...cart]);
     setScreen('thanks');
     setCart([]);
-    setOrderProgress(0);
   };
 
   const handleSendMessage = async (text: string) => {
@@ -675,28 +712,129 @@ export default function App() {
     }
   };
 
-  // Order Progress Simulation
-  useEffect(() => {
-    if (screen !== 'thanks' || orderProgress >= 100) return;
-
-    const interval = setInterval(() => {
-      setOrderProgress(prev => Math.min(prev + 1, 100));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [screen, orderProgress]);
-
   // --- Render Screens ---
+
+  const handlePinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (staffPin === CORRECT_PIN) {
+      setScreen('staff');
+      setShowPinModal(false);
+      setStaffPin('');
+      setPinError(false);
+    } else {
+      setPinError(true);
+      setStaffPin('');
+      vibrate();
+    }
+  };
 
   const renderLanding = () => (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col items-center justify-center min-h-screen p-6 text-center space-y-8"
+      className="flex flex-col items-center justify-center min-h-screen p-6 text-center space-y-8 relative overflow-hidden"
     >
+      {/* Golden Hour Banner */}
+      <AnimatePresence>
+        {isGoldenHour && (
+          <motion.div 
+            initial={{ y: -100 }}
+            animate={{ y: 0 }}
+            exit={{ y: -100 }}
+            className="fixed top-0 left-0 right-0 z-[250] bg-gradient-to-r from-amber-600 to-orange-600 text-white p-4 text-center shadow-lg"
+          >
+            <div className="flex items-center justify-center gap-3">
+              <Sparkles className="w-5 h-5 animate-pulse" />
+              <p className="font-black uppercase tracking-widest text-[10px] sm:text-xs">
+                ✨ GOLDEN HOUR FLASH SALE: {goldenHourDiscount}% OFF ALL DINING! ✨
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Staff Login Modal */}
+      <AnimatePresence>
+        {showPinModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-xl">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[40px] p-8 shadow-2xl border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+                  <Lock className="w-6 h-6 text-white" />
+                </div>
+                <button onClick={() => setShowPinModal(false)} className="p-2 text-slate-400">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <h3 className="text-xl font-black uppercase tracking-tight mb-2">Staff Access</h3>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-8">Enter Authorization PIN</p>
+              
+              <form onSubmit={handlePinSubmit} className="space-y-6">
+                <div className="flex justify-center gap-4">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div 
+                      key={i} 
+                      className={`w-12 h-16 rounded-2xl border-2 flex items-center justify-center text-2xl font-black transition-all ${
+                        pinError ? 'border-red-500 bg-red-500/10' : 
+                        staffPin.length > i ? 'border-amber-500 bg-amber-500/10 text-amber-500' : 'border-slate-200 dark:border-slate-800'
+                      }`}
+                    >
+                      {staffPin.length > i ? '•' : ''}
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="grid grid-cols-3 gap-3">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 'C', 0, 'OK'].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => {
+                        if (num === 'C') setStaffPin('');
+                        else if (num === 'OK') handlePinSubmit({ preventDefault: () => {} } as any);
+                        else if (staffPin.length < 4) setStaffPin(prev => prev + num);
+                        setPinError(false);
+                      }}
+                      className={`h-14 rounded-2xl font-black text-lg active:scale-90 transition-all ${
+                        num === 'OK' ? 'bg-amber-500 text-white col-span-1' : 
+                        num === 'C' ? 'bg-slate-100 dark:bg-slate-800 text-red-500' : 'bg-slate-100 dark:bg-slate-800'
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+                
+                {pinError && (
+                  <motion.p 
+                    initial={{ x: -10 }}
+                    animate={{ x: 0 }}
+                    className="text-center text-xs font-bold text-red-500 uppercase tracking-widest"
+                  >
+                    Invalid Access Code
+                  </motion.p>
+                )}
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <div className="relative">
         <div className="absolute -inset-4 bg-amber-500/20 blur-2xl rounded-full animate-pulse" />
-        <ButlerAvatar gender={gender} lang="DE" size="lg" />
+        {hotelLogo ? (
+          <div className="w-48 h-48 rounded-full overflow-hidden border-4 border-amber-500 shadow-2xl relative z-10">
+            <img src={hotelLogo} alt="Hotel Logo" className="w-full h-full object-cover" />
+          </div>
+        ) : (
+          <ButlerAvatar gender={gender} lang="DE" size="lg" />
+        )}
       </div>
       <div className="space-y-2">
         <h1 className="text-5xl font-black tracking-tighter text-amber-500 dark:text-amber-400 uppercase italic">
@@ -716,10 +854,10 @@ export default function App() {
         </button>
         
         <button 
-          onClick={() => setScreen('staff')}
-          className="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-amber-500 transition-colors flex items-center justify-center gap-2 py-4"
+          onClick={() => setShowPinModal(true)}
+          className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400/50 hover:text-amber-500 transition-colors flex items-center justify-center gap-2 py-8"
         >
-          <LayoutDashboard className="w-4 h-4" /> Staff Dashboard
+          <ShieldCheck className="w-3 h-3" /> Internal Access Only
         </button>
       </div>
     </motion.div>
@@ -842,22 +980,52 @@ export default function App() {
     const hour = new Date().getHours();
     const greeting = hour < 12 ? (lang === 'DE' ? 'Guten Morgen' : 'Good Morning') : hour < 18 ? (lang === 'DE' ? 'Guten Tag' : 'Good Day') : (lang === 'DE' ? 'Guten Abend' : 'Good Evening');
 
-    const categories = ['All', ...Array.from(new Set(MENU.filter(i => i.category !== 'Service' && i.category !== 'Experience').map(i => i.category)))];
+    const categories = ['All', ...Array.from(new Set(customMenu.filter(i => i.category !== 'Service' && i.category !== 'Experience').map(i => i.category)))];
 
-    const filteredMenu = MENU.filter(item => {
+    const filteredMenu = customMenu.filter(item => {
       const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                            item.description.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
       const isNotServiceOrExperience = item.category !== 'Service' && item.category !== 'Experience';
       return matchesSearch && matchesCategory && isNotServiceOrExperience;
+    }).map(item => {
+      if (isGoldenHour && (item.category === 'Dining' || item.category === 'Speisen' || item.category === 'Breakfast' || item.category === 'Lunch' || item.category === 'Dinner')) {
+        return { ...item, price: Math.round(item.price * (1 - goldenHourDiscount / 100)) };
+      }
+      return item;
     });
+
+    const latestOrder = orders.find(o => o.room === roomNumber && o.status !== 'completed');
 
     return (
     <div className="min-h-screen pb-48">
+      {/* Notification Toast */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div 
+            initial={{ opacity: 0, y: -100, scale: 0.8 }}
+            animate={{ opacity: 1, y: 20, scale: 1 }}
+            exit={{ opacity: 0, y: -100, scale: 0.8 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-white dark:bg-slate-800 px-6 py-3 rounded-full shadow-2xl border border-amber-500/20 flex items-center gap-3"
+          >
+            <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white">
+              <Plus className="w-4 h-4" />
+            </div>
+            <p className="font-bold text-sm">{notification.name} hinzugefügt</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <header className="sticky top-0 z-20 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md p-6 flex flex-col gap-4 border-b border-slate-200 dark:border-slate-800">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <ButlerAvatar gender={gender} lang={lang} size="sm" />
+            {hotelLogo ? (
+              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-500/30">
+                <img src={hotelLogo} alt="Hotel Logo" className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <ButlerAvatar gender={gender} lang={lang} size="sm" />
+            )}
             <div>
               <h2 className="font-bold leading-tight">{selectedButler?.name}</h2>
               <p className="text-xs text-amber-500 font-bold">{t.room} {roomNumber}</p>
@@ -875,6 +1043,44 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {/* Real-time Order Status */}
+        {latestOrder && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/20 rounded-2xl p-3 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                {latestOrder.status === 'pending' && <Clock className="w-5 h-5 text-amber-500 animate-pulse" />}
+                {latestOrder.status === 'preparing' && <RefreshCw className="w-5 h-5 text-amber-500 animate-spin" />}
+                {latestOrder.status === 'delivering' && <Truck className="w-5 h-5 text-amber-500 animate-bounce" />}
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">Aktueller Status</p>
+                <p className="text-xs font-bold">
+                  {latestOrder.status === 'pending' && 'Bestellung eingegangen...'}
+                  {latestOrder.status === 'preparing' && 'In der Zubereitung...'}
+                  {latestOrder.status === 'delivering' && 'Butler ist unterwegs!'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              {[1, 2, 3].map((step) => {
+                const isActive = (latestOrder.status === 'pending' && step === 1) || 
+                               (latestOrder.status === 'preparing' && step <= 2) ||
+                               (latestOrder.status === 'delivering' && step <= 3);
+                return (
+                  <div 
+                    key={step} 
+                    className={`h-1 w-6 rounded-full transition-all duration-500 ${isActive ? 'bg-amber-500' : 'bg-slate-200 dark:bg-slate-700'}`} 
+                  />
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
 
         {/* Search Bar */}
         <div className="relative">
@@ -955,36 +1161,46 @@ export default function App() {
 
             {/* Experiences Section (Only show if no search or if search matches) */}
             {searchQuery === '' && selectedCategory === 'All' && (
-              <section>
-                <h3 className="text-xs font-black mb-4 uppercase tracking-widest text-amber-500">Curated Experiences</h3>
-                <div className="flex gap-6 overflow-x-auto pb-6 no-scrollbar snap-x">
-                  {MENU.filter(item => item.category === 'Experience').map(item => (
-                    <motion.div 
-                      key={item.id}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => addToCart(item)}
-                      className="flex-shrink-0 w-[85vw] group relative h-64 rounded-[40px] overflow-hidden shadow-2xl cursor-pointer snap-center"
-                    >
-                      <img 
-                        src={item.image} 
-                        alt={item.name} 
-                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-                      <div className="absolute bottom-0 left-0 right-0 p-8">
-                        <div className="flex justify-between items-end">
-                          <div className="space-y-1">
-                            <h4 className="text-2xl font-black text-white italic uppercase tracking-tight">{item.name}</h4>
-                            <p className="text-amber-200 text-sm font-medium max-w-[80%]">{item.description}</p>
-                          </div>
-                          <div className="bg-amber-500 text-white px-6 py-3 rounded-2xl font-black text-xl shadow-lg">
-                            {item.price}€
+              <section className="overflow-hidden py-4">
+                <h3 className="text-xs font-black mb-6 px-8 uppercase tracking-widest text-amber-500">Curated Experiences</h3>
+                <div className="relative flex [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+                  <motion.div 
+                    animate={{ x: ["0%", "-50%"] }}
+                    transition={{ 
+                      duration: 10, 
+                      ease: "linear", 
+                      repeat: Infinity 
+                    }}
+                    className="flex gap-4 px-4 will-change-transform"
+                  >
+                    {[...customMenu.filter(item => item.category === 'Experience'), ...customMenu.filter(item => item.category === 'Experience')].map((item, idx) => (
+                      <motion.div 
+                        key={`${item.id}-${idx}`}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => addToCart(item)}
+                        className="flex-shrink-0 w-[80vw] md:w-[400px] group relative h-64 rounded-[40px] overflow-hidden shadow-xl cursor-pointer"
+                      >
+                        <img 
+                          src={item.image} 
+                          alt={item.name} 
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent" />
+                        <div className="absolute bottom-0 left-0 right-0 p-8">
+                          <div className="flex justify-between items-end">
+                            <div className="space-y-1">
+                              <h4 className="text-2xl font-black text-white italic uppercase tracking-tight">{item.name}</h4>
+                              <p className="text-amber-200 text-xs font-medium max-w-[80%] line-clamp-2">{item.description}</p>
+                            </div>
+                            <div className="bg-amber-500 text-white px-5 py-2 rounded-2xl font-black text-lg shadow-lg">
+                              {item.price}€
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  ))}
+                      </motion.div>
+                    ))}
+                  </motion.div>
                 </div>
               </section>
             )}
@@ -1435,10 +1651,18 @@ export default function App() {
 
         <button 
           onClick={() => {
-            alert("Express Checkout initiated. Thank you for staying with us!");
+            // Clear Guest Session for Privacy
+            setRoomNumber('');
+            setCart([]);
+            setBillItems([]);
+            setOrders([]); // Clear orders from this device
+            setIsNavHidden(false);
             setScreen('landing');
+            
+            // Show a clean confirmation
+            alert("Checkout Complete. All personal data has been cleared from this device. Thank you!");
           }}
-          className="w-full mt-8 py-5 bg-amber-500 text-white font-black rounded-2xl shadow-xl flex items-center justify-center gap-3"
+          className="w-full mt-8 py-5 bg-amber-500 text-white font-black rounded-2xl shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all"
         >
           <LogOut className="w-6 h-6" />
           EXPRESS CHECKOUT
@@ -1566,15 +1790,38 @@ export default function App() {
     const lang = selectedButler?.lang || 'DE';
     const t = TRANSLATIONS[lang];
     
-    const statusSteps = [
-      { label: lang === 'DE' ? 'Bestellung erhalten' : 'Order Received', min: 0, detail: lang === 'DE' ? 'Wir haben Ihre Wünsche notiert.' : 'We have noted your requests.' },
-      { label: lang === 'DE' ? 'In Vorbereitung' : 'Preparing', min: 25, detail: lang === 'DE' ? `${selectedButler?.name} wählt die feinsten Zutaten aus.` : `${selectedButler?.name} is selecting the finest ingredients.` },
-      { label: lang === 'DE' ? 'Qualitätskontrolle' : 'Quality Check', min: 50, detail: lang === 'DE' ? 'Das Silber wird poliert.' : 'The silver is being polished.' },
-      { label: lang === 'DE' ? 'Auf dem Weg' : 'On the Way', min: 75, detail: lang === 'DE' ? 'Ihr Butler ist im Aufzug.' : 'Your butler is in the elevator.' },
-      { label: lang === 'DE' ? 'Ankunft' : 'Arrived', min: 100, detail: lang === 'DE' ? 'Es klopft an der Tür.' : 'A knock at the door.' },
-    ];
+    const latestOrder = orders.find(o => o.room === roomNumber && o.status !== 'completed');
+    
+    const getStatusInfo = (status: Order['status'] | undefined) => {
+      switch (status) {
+        case 'pending':
+          return { 
+            progress: 20, 
+            label: lang === 'DE' ? 'Bestellung erhalten' : 'Order Received',
+            detail: lang === 'DE' ? 'Wir haben Ihre Wünsche notiert.' : 'We have noted your requests.'
+          };
+        case 'preparing':
+          return { 
+            progress: 60, 
+            label: lang === 'DE' ? 'In Vorbereitung' : 'Preparing',
+            detail: lang === 'DE' ? `${selectedButler?.name} wählt die feinsten Zutaten aus.` : `${selectedButler?.name} is selecting the finest ingredients.`
+          };
+        case 'delivering':
+          return { 
+            progress: 90, 
+            label: lang === 'DE' ? 'Auf dem Weg' : 'On the Way',
+            detail: lang === 'DE' ? 'Ihr Butler ist im Aufzug.' : 'Your butler is in the elevator.'
+          };
+        default:
+          return { 
+            progress: 100, 
+            label: lang === 'DE' ? 'Abgeschlossen' : 'Completed',
+            detail: lang === 'DE' ? 'Vielen Dank für Ihre Bestellung!' : 'Thank you for your order!'
+          };
+      }
+    };
 
-    const currentStep = [...statusSteps].reverse().find(s => orderProgress >= s.min) || statusSteps[0];
+    const currentStatus = getStatusInfo(latestOrder?.status);
 
     return (
     <motion.div 
@@ -1599,32 +1846,32 @@ export default function App() {
           <p className="text-xl font-medium italic">
             "{getButlerMessage('thanks')}"
           </p>
-          <p className="text-amber-500 font-bold text-sm animate-pulse">{currentStep.detail}</p>
+          <p className="text-amber-500 font-bold text-sm animate-pulse">{currentStatus.detail}</p>
         </div>
         <p className="text-sm text-slate-500 mt-2">Zimmer {roomNumber}</p>
         
         {/* Live Tracker */}
         <div className="mt-12 px-4 w-full max-w-md mx-auto">
           <div className="flex justify-between mb-2">
-            <span className="text-xs font-black uppercase text-amber-500 tracking-widest">{currentStep.label}</span>
-            <span className="text-xs font-bold text-slate-400">{orderProgress}%</span>
+            <span className="text-xs font-black uppercase text-amber-500 tracking-widest">{currentStatus.label}</span>
+            <span className="text-xs font-bold text-slate-400">{currentStatus.progress}%</span>
           </div>
           <div className="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700">
             <motion.div 
               initial={{ width: 0 }}
-              animate={{ width: `${orderProgress}%` }}
+              animate={{ width: `${currentStatus.progress}%` }}
               className="h-full bg-gradient-to-r from-amber-400 to-amber-600 shadow-[0_0_10px_rgba(245,158,11,0.5)]"
             />
           </div>
           <div className="flex justify-between mt-4">
-            {statusSteps.map((s, i) => (
-              <div key={i} className={`w-2 h-2 rounded-full ${orderProgress >= s.min ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'}`} />
+            {[20, 60, 90, 100].map((p, i) => (
+              <div key={i} className={`w-2 h-2 rounded-full ${currentStatus.progress >= p ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'}`} />
             ))}
           </div>
         </div>
 
         {/* Last Minute Upsell */}
-        {orderProgress < 50 && (
+        {latestOrder && latestOrder.status === 'pending' && (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1675,6 +1922,210 @@ export default function App() {
     return <TetrisGame onBack={() => setScreen('thanks')} />;
   };
 
+  const renderAdmin = () => {
+    const [adminSearch, setAdminSearch] = useState('');
+    
+    const handlePriceChange = (id: string, newPrice: number) => {
+      setCustomMenu(prev => prev.map(item => item.id === id ? { ...item, price: newPrice } : item));
+    };
+
+    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setHotelLogo(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    const filteredAdminMenu = customMenu.filter(item => 
+      item.name.toLowerCase().includes(adminSearch.toLowerCase()) || 
+      item.category.toLowerCase().includes(adminSearch.toLowerCase())
+    );
+
+    return (
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6"
+      >
+        <header className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center shadow-lg">
+              <Settings className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black uppercase tracking-tight">Hotel Admin</h2>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Global Settings</p>
+            </div>
+          </div>
+          <button onClick={() => setScreen('staff')} className="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+            <ArrowLeft className="w-6 h-6 text-slate-400" />
+          </button>
+        </header>
+
+        <div className="max-w-4xl mx-auto space-y-8">
+          {/* Branding Section */}
+          <section className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-sm border border-slate-100 dark:border-slate-800">
+            <h3 className="text-lg font-black uppercase tracking-widest mb-6 flex items-center gap-3">
+              <Sparkles className="w-5 h-5 text-amber-500" /> Branding & Identity
+            </h3>
+            <div className="flex flex-col md:flex-row items-center gap-8">
+              <div className="w-32 h-32 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center border-4 border-dashed border-slate-200 dark:border-slate-700 overflow-hidden relative group">
+                {hotelLogo ? (
+                  <img src={hotelLogo} alt="Hotel Logo" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="text-center p-4">
+                    <Plus className="w-6 h-6 mx-auto text-slate-400 mb-1" />
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Logo</span>
+                  </div>
+                )}
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleLogoUpload}
+                  className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                />
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <p className="text-[10px] font-bold text-white uppercase">Change</p>
+                </div>
+              </div>
+              <div className="flex-1 space-y-2">
+                <p className="font-bold">Hotel Logo</p>
+                <p className="text-sm text-slate-500">This logo will replace the Butler avatar in the guest header. Recommended: Square PNG or SVG.</p>
+                {hotelLogo && (
+                  <button 
+                    onClick={() => setHotelLogo(null)}
+                    className="text-xs font-bold text-red-500 uppercase tracking-widest hover:underline"
+                  >
+                    Remove Logo
+                  </button>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Revenue Booster Section */}
+          <section className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-sm border border-slate-100 dark:border-slate-800">
+            <h3 className="text-lg font-black uppercase tracking-widest flex items-center gap-3 mb-6">
+              <Sparkles className="w-5 h-5 text-amber-500" /> Revenue Booster
+            </h3>
+            <div className="space-y-6">
+              <div className="flex items-center justify-between p-6 bg-amber-50 dark:bg-amber-900/20 rounded-3xl border border-amber-100 dark:border-amber-800">
+                <div>
+                  <p className="font-black text-amber-900 dark:text-amber-100 italic">GOLDEN HOUR FLASH SALE</p>
+                  <p className="text-[10px] font-bold text-amber-700/60 dark:text-amber-300/60 uppercase tracking-widest">Trigger a temporary discount to boost orders</p>
+                </div>
+                <button 
+                  onClick={() => setIsGoldenHour(!isGoldenHour)}
+                  className={`w-16 h-8 rounded-full transition-all relative ${isGoldenHour ? 'bg-amber-500' : 'bg-slate-300'}`}
+                >
+                  <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${isGoldenHour ? 'left-9' : 'left-1'}`} />
+                </button>
+              </div>
+              
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Discount Percentage</p>
+                <div className="flex items-center gap-4">
+                  <input 
+                    type="range" min="5" max="50" step="5"
+                    value={goldenHourDiscount}
+                    onChange={(e) => setGoldenHourDiscount(parseInt(e.target.value))}
+                    className="flex-1 accent-amber-500"
+                  />
+                  <span className="font-black text-xl text-amber-500 w-12">{goldenHourDiscount}%</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* WhatsApp Configuration Section */}
+          <section className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-sm border border-slate-100 dark:border-slate-800">
+            <h3 className="text-lg font-black uppercase tracking-widest flex items-center gap-3 mb-6">
+              <MessageSquare className="w-5 h-5 text-green-500" /> WhatsApp Integration
+            </h3>
+            <div className="space-y-4">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Service Number (International Format)</p>
+              <div className="flex gap-4">
+                <input 
+                  type="text" 
+                  placeholder="+49 123 4567890"
+                  value={whatsappNumber}
+                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  className="flex-1 px-6 py-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-amber-500 outline-none font-bold"
+                />
+              </div>
+              <p className="text-[10px] text-slate-500 leading-relaxed italic">
+                Orders will be sent directly to this number via WhatsApp. Use international format (e.g., +49 for Germany).
+              </p>
+            </div>
+          </section>
+
+          {/* Price Management Section */}
+          <section className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-sm border border-slate-100 dark:border-slate-800">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-black uppercase tracking-widest flex items-center gap-3">
+                <Receipt className="w-5 h-5 text-amber-500" /> Price Management
+              </h3>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input 
+                  type="text" 
+                  placeholder="Filter items..." 
+                  value={adminSearch}
+                  onChange={(e) => setAdminSearch(e.target.value)}
+                  className="pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 no-scrollbar">
+              {filteredAdminMenu.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-700">
+                      {item.image ? (
+                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xl">🍽️</div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">{item.name}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.category}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <input 
+                        type="number" 
+                        value={item.price}
+                        onChange={(e) => handlePriceChange(item.id, parseFloat(e.target.value) || 0)}
+                        className="w-24 pl-4 pr-8 py-2 bg-white dark:bg-slate-900 rounded-xl font-bold text-sm border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-amber-500 outline-none"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">€</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <div className="flex justify-center pt-8">
+            <button 
+              onClick={() => setScreen('staff')}
+              className="px-12 py-4 bg-amber-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-amber-500/20 active:scale-95 transition-all"
+            >
+              Save & Exit
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
+
   const renderStaffDashboard = () => {
     const updateOrderStatus = (id: string, status: Order['status']) => {
       setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
@@ -1695,17 +2146,28 @@ export default function App() {
       >
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20">
-              <LayoutDashboard className="w-6 h-6 text-white" />
-            </div>
+            {hotelLogo ? (
+              <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-lg">
+                <img src={hotelLogo} alt="Hotel Logo" className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+                <LayoutDashboard className="w-6 h-6 text-white" />
+              </div>
+            )}
             <div>
               <h2 className="text-2xl font-black uppercase tracking-tight">BOH Terminal</h2>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Back of House • Live</p>
             </div>
           </div>
-          <button onClick={() => setScreen('landing')} className="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
-            <LogOut className="w-6 h-6 text-slate-400" />
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => setScreen('admin')} className="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+              <Settings className="w-6 h-6 text-slate-400" />
+            </button>
+            <button onClick={() => setScreen('landing')} className="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+              <LogOut className="w-6 h-6 text-slate-400" />
+            </button>
+          </div>
         </header>
 
         {/* Stats Grid */}
@@ -1876,6 +2338,7 @@ export default function App() {
         {screen === 'key' && renderKey()}
         {screen === 'bill' && renderBill()}
         {screen === 'staff' && renderStaffDashboard()}
+        {screen === 'admin' && renderAdmin()}
       </AnimatePresence>
 
       {renderChat()}
@@ -1908,6 +2371,7 @@ export default function App() {
                 ].map((item) => (
                   <button 
                     key={item.id}
+                    id={`nav-btn-${item.id}`}
                     onClick={() => {
                       if (item.id === 'chat') {
                         setIsChatOpen(true);
