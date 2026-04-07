@@ -5,12 +5,16 @@ import {
   Plus, 
   Trash2, 
   FileJson, 
+  Copy,
   User, 
   Image as ImageIcon, 
   Type, 
   Layout, 
   Settings as SettingsIcon,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Edit2,
   AlertCircle,
   CheckCircle2,
   Receipt,
@@ -23,15 +27,16 @@ import { formatPrice } from '../lib/utils';
 interface Butler {
   id: string;
   name: string;
-  lang: string;
+  languages: string[];
   oxymoron: string;
   flag: string;
   personalityType: string;
   quotes: {
     welcome: string;
     bored: string;
-    upsell: string;
+    upsell: string[];
   };
+  isLadyOfHouse?: boolean;
 }
 
 interface MenuItem {
@@ -61,30 +66,45 @@ const PREFILLED_PERSONAS = [
     name: "The Perfectionist",
     oxymoron: "Obsessed with 12-minute precision",
     personalityType: "The Perfectionist",
+    languages: ["DE", "EN"],
     quotes: {
       welcome: "Ordnung muss sein! Your room is exactly 22.4 degrees. Perfect.",
       bored: "Boredom is a lack of planning. I have scheduled a 14-minute walk to the Clock Museum for you.",
-      upsell: "Our Wagyu Burger is engineered for maximum satisfaction. It is the logical choice."
+      upsell: ["Our Wagyu Burger is engineered for maximum satisfaction. It is the logical choice.", "Precision is key. The Champagne is chilled to exactly 6 degrees."]
     }
   },
   {
     name: "The Passionate",
     oxymoron: "Talks with 4 hands at once",
     personalityType: "The Passionate",
+    languages: ["IT", "EN", "ES"],
     quotes: {
       welcome: "Mamma Mia! You look like you need a coffee that tastes like sunshine!",
       bored: "Bored? In this city? Impossible! Go to the Piazza, find a beautiful stranger, and argue about pasta!",
-      upsell: "The Truffle Pasta... it is like a kiss from an angel. You order, I sing for you!"
+      upsell: ["The Truffle Pasta... it is like a kiss from an angel. You order, I sing for you!", "A bottle of Chianti? It is the blood of the earth!"]
+    }
+  },
+  {
+    name: "Lady of the House",
+    oxymoron: "Polite soul of the house",
+    personalityType: "The Matriarch",
+    languages: ["EN", "DE", "FR", "IT", "ES", "ZH", "JA", "RU"],
+    isLadyOfHouse: true,
+    quotes: {
+      welcome: "Welcome home, dear guest. The house is yours, and I am here to ensure your absolute comfort.",
+      bored: "A quiet moment is a gift. Perhaps a book from our library or a gentle tea in the garden?",
+      upsell: ["Our afternoon tea service is a tradition of elegance. May I prepare a table for you?", "The evening selection of fine chocolates is quite exquisite tonight."]
     }
   },
   {
     name: "The Zen Master",
     oxymoron: "Apologizes to the furniture",
     personalityType: "The Ultra-Polite",
+    languages: ["JA", "EN"],
     quotes: {
       welcome: "I have bowed to your luggage three times. It is now very happy.",
       bored: "Perhaps a moment of silent meditation? Or I can find you the most efficient route to the Origami Center.",
-      upsell: "The Gold Cappuccino is a masterpiece of balance. It would be an honor to serve it."
+      upsell: ["The Gold Cappuccino is a masterpiece of balance. It would be an honor to serve it.", "A bowl of Miso soup is a gentle hug for the soul."]
     }
   }
 ];
@@ -95,6 +115,44 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, config, onSave 
   const [jsonInput, setJsonInput] = useState('');
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success'>('idle');
+  const [editingMenuItem, setEditingMenuItem] = useState<any | null>(null);
+  const [showAllMenuItems, setShowAllMenuItems] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const JSON_PROMPT = `Generate a JSON array of hotel services and menu items. 
+Follow this strict structure:
+- id: unique string (use room numbers for bookings, e.g., "room101")
+- name: item or room name
+- description: detailed description
+- price: number
+- category: "Dining", "Services", or "Room Booking"
+- image: (optional) URL or leave empty for auto-generation
+- isRecommended: (optional) boolean
+
+Example:
+[
+  {
+    "id": "room101",
+    "name": "Deluxe Ocean Suite",
+    "description": "King size bed, private balcony, 45sqm",
+    "price": 299,
+    "category": "Room Booking"
+  },
+  {
+    "id": "m1",
+    "name": "Truffle Pasta",
+    "description": "Fresh handmade pasta with black truffle cream",
+    "price": 28,
+    "category": "Dining",
+    "isRecommended": true
+  }
+]`;
+
+  const copyPrompt = () => {
+    navigator.clipboard.writeText(JSON_PROMPT);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   // Analytics Logic
   const currency = localConfig.additionalOptions.currency || 'EUR';
@@ -124,7 +182,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, config, onSave 
     try {
       const parsed = JSON.parse(jsonInput);
       if (Array.isArray(parsed)) {
-        setLocalConfig({ ...localConfig, menu: parsed });
+        const processedMenu = parsed.map((item: any) => {
+          if (item.name && !item.image) {
+            const imageName = item.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '.jpg';
+            return { ...item, image: imageName };
+          }
+          return item;
+        });
+        setLocalConfig({ ...localConfig, menu: processedMenu });
         setJsonError(null);
         setJsonInput('');
       } else {
@@ -147,6 +212,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, config, onSave 
       return b;
     });
     setLocalConfig({ ...localConfig, butlers: updatedButlers });
+  };
+
+  const updateMenuItem = (id: string, updatedItem: Partial<MenuItem>) => {
+    const updatedMenu = localConfig.menu.map(item => 
+      item.id === id ? { ...item, ...updatedItem } : item
+    );
+    setLocalConfig({ ...localConfig, menu: updatedMenu });
+  };
+
+  const deleteMenuItem = (id: string) => {
+    const updatedMenu = localConfig.menu.filter(item => item.id !== id);
+    setLocalConfig({ ...localConfig, menu: updatedMenu });
   };
 
   const applyPersonaTemplate = (butlerId: string, template: typeof PREFILLED_PERSONAS[0]) => {
@@ -312,6 +389,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, config, onSave 
                     <span className="text-xs text-slate-500 font-mono">Current items: {localConfig.menu.length}</span>
                   </div>
                   <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-slate-500">Copy this structure to your AI prompt for perfect results:</p>
+                      <button 
+                        onClick={copyPrompt}
+                        className="flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-amber-500 hover:text-white rounded-lg text-[10px] font-bold transition-all"
+                      >
+                        {copied ? <CheckCircle2 size={12} /> : <Copy size={12} />}
+                        {copied ? 'Copied!' : 'Copy AI Prompt'}
+                      </button>
+                    </div>
                     <div className="relative">
                       <textarea 
                         value={jsonInput}
@@ -336,22 +423,62 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, config, onSave 
                 </section>
 
                 <section>
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Live Preview</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Menu Items</h3>
+                    <button 
+                      onClick={() => {
+                        const newId = 'm' + (localConfig.menu.length + 1);
+                        const newItem = { id: newId, name: 'New Item', description: '', price: 0, category: 'Speisen' };
+                        setLocalConfig({ ...localConfig, menu: [...localConfig.menu, newItem] });
+                        setEditingMenuItem(newItem);
+                      }}
+                      className="flex items-center gap-1 text-xs font-bold text-amber-500 hover:text-amber-600 transition-colors"
+                    >
+                      <Plus size={14} /> Add Item
+                    </button>
+                  </div>
+                  
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {localConfig.menu.slice(0, 4).map(item => (
-                      <div key={item.id} className="p-4 border border-slate-100 dark:border-slate-800 rounded-xl flex gap-4 bg-slate-50/50 dark:bg-slate-900/50">
+                    {(showAllMenuItems ? localConfig.menu : localConfig.menu.slice(0, 4)).map(item => (
+                      <div key={item.id} className="p-4 border border-slate-100 dark:border-slate-800 rounded-xl flex gap-4 bg-slate-50/50 dark:bg-slate-900/50 group relative">
                         {item.image && <img src={item.image} className="w-16 h-16 rounded-lg object-cover" referrerPolicy="no-referrer" />}
-                        <div>
+                        <div className="flex-1">
                           <h4 className="font-bold text-slate-900 dark:text-white">{item.name}</h4>
                           <p className="text-xs text-slate-500 line-clamp-1">{item.description}</p>
-                          <p className="text-sm font-bold text-amber-500 mt-1">{formatPrice(item.price, currency)}</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <p className="text-sm font-bold text-amber-500">{formatPrice(item.price, currency)}</p>
+                            <span className="text-[10px] px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-400 font-bold uppercase tracking-tighter">{item.category}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => setEditingMenuItem(item)}
+                            className="p-1.5 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 text-slate-400 hover:text-amber-500 transition-colors"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button 
+                            onClick={() => deleteMenuItem(item.id)}
+                            className="p-1.5 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-100 dark:border-slate-700 text-slate-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </div>
                     ))}
+                    
                     {localConfig.menu.length > 4 && (
-                      <div className="col-span-full text-center py-2 text-slate-400 text-sm italic">
-                        ... and {localConfig.menu.length - 4} more items
-                      </div>
+                      <button 
+                        onClick={() => setShowAllMenuItems(!showAllMenuItems)}
+                        className="col-span-full flex items-center justify-center gap-2 py-3 text-slate-400 hover:text-amber-500 transition-colors text-sm font-medium"
+                      >
+                        {showAllMenuItems ? (
+                          <>Show Less <ChevronUp size={16} /></>
+                        ) : (
+                          <>Show {localConfig.menu.length - 4} more items <ChevronDown size={16} /></>
+                        )}
+                      </button>
                     )}
                   </div>
                 </section>
@@ -379,11 +506,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, config, onSave 
                         butlers: [...localConfig.butlers, {
                           id: newId,
                           name: "New Worker",
-                          lang: "EN",
+                          languages: ["EN"],
                           oxymoron: "New Trait",
                           flag: "🌐",
                           personalityType: "The Professional",
-                          quotes: { welcome: "Hello!", bored: "How can I help?", upsell: "Try this!" }
+                          quotes: { welcome: "Hello!", bored: "How can I help?", upsell: ["Try this!"] }
                         }]
                       });
                     }}
@@ -402,12 +529,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, config, onSave 
                             {butler.flag}
                           </div>
                           <div>
-                            <input 
-                              type="text" 
-                              value={butler.name}
-                              onChange={(e) => updateButler(butler.id, 'name', e.target.value)}
-                              className="text-lg font-bold bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 outline-none transition-all px-1"
-                            />
+                            <div className="flex items-center gap-3">
+                              <input 
+                                type="text" 
+                                value={butler.name}
+                                onChange={(e) => updateButler(butler.id, 'name', e.target.value)}
+                                className="text-lg font-bold bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 outline-none transition-all px-1"
+                              />
+                              {butler.isLadyOfHouse && (
+                                <span className="px-2 py-0.5 bg-indigo-500 text-white text-[8px] font-black uppercase tracking-widest rounded-full">
+                                  Lady of the House
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-slate-500 px-1">ID: {butler.id}</p>
                           </div>
                         </div>
@@ -445,23 +579,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, config, onSave 
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Language Code / Flag</label>
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Languages (Comma separated)</label>
                             <div className="flex gap-2">
                               <input 
                                 type="text" 
-                                value={butler.lang}
-                                onChange={(e) => updateButler(butler.id, 'lang', e.target.value)}
-                                className="w-16 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
-                                placeholder="EN"
+                                value={butler.languages?.join(', ') || ''}
+                                onChange={(e) => updateButler(butler.id, 'languages', e.target.value.split(',').map(s => s.trim().toUpperCase()))}
+                                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                                placeholder="EN, DE, FR"
                               />
                               <input 
                                 type="text" 
                                 value={butler.flag}
                                 onChange={(e) => updateButler(butler.id, 'flag', e.target.value)}
-                                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                                className="w-16 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm text-center"
                                 placeholder="🇺🇸"
                               />
                             </div>
+                          </div>
+                          <div className="flex items-center gap-2 pt-2">
+                            <input 
+                              type="checkbox" 
+                              id={`lady-${butler.id}`}
+                              checked={butler.isLadyOfHouse || false}
+                              onChange={(e) => updateButler(butler.id, 'isLadyOfHouse', e.target.checked)}
+                              className="w-4 h-4 accent-amber-500"
+                            />
+                            <label htmlFor={`lady-${butler.id}`} className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase cursor-pointer">
+                              Lady of the House Status
+                            </label>
                           </div>
                         </div>
 
@@ -489,12 +635,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, config, onSave 
                             />
                           </div>
                           <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Upsell Quote</label>
-                            <textarea 
-                              value={butler.quotes.upsell}
-                              onChange={(e) => updateButler(butler.id, 'quotes.upsell', e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm h-16 resize-none"
-                            />
+                            <div className="flex justify-between items-center mb-1">
+                              <label className="block text-xs font-bold text-slate-400 uppercase">Upsell Quotes</label>
+                              <button 
+                                onClick={() => {
+                                  const currentUpsells = butler.quotes.upsell || [];
+                                  updateButler(butler.id, 'quotes.upsell', [...currentUpsells, "New upsell quote..."]);
+                                }}
+                                className="text-[10px] font-black text-amber-500 uppercase hover:underline"
+                              >
+                                + Add Quote
+                              </button>
+                            </div>
+                            <div className="space-y-2">
+                              {(butler.quotes.upsell || []).map((quote, qIdx) => (
+                                <div key={qIdx} className="relative group">
+                                  <textarea 
+                                    value={quote}
+                                    onChange={(e) => {
+                                      const newUpsells = [...butler.quotes.upsell];
+                                      newUpsells[qIdx] = e.target.value;
+                                      updateButler(butler.id, 'quotes.upsell', newUpsells);
+                                    }}
+                                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm h-16 resize-none pr-8"
+                                  />
+                                  <button 
+                                    onClick={() => {
+                                      const newUpsells = butler.quotes.upsell.filter((_, i) => i !== qIdx);
+                                      updateButler(butler.id, 'quotes.upsell', newUpsells);
+                                    }}
+                                    className="absolute top-2 right-2 p-1 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -723,6 +899,96 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, config, onSave 
           </AnimatePresence>
         </main>
       </div>
+
+      <AnimatePresence>
+        {editingMenuItem && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-[32px] w-full max-w-md overflow-hidden shadow-2xl"
+            >
+              <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <h3 className="text-xl font-black">Edit Menu Item</h3>
+                <button onClick={() => setEditingMenuItem(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Item Name</label>
+                  <input 
+                    type="text" 
+                    value={editingMenuItem.name}
+                    onChange={(e) => setEditingMenuItem({ ...editingMenuItem, name: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Description</label>
+                  <textarea 
+                    value={editingMenuItem.description}
+                    onChange={(e) => setEditingMenuItem({ ...editingMenuItem, description: e.target.value })}
+                    className="w-full h-24 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all resize-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Price</label>
+                    <input 
+                      type="number" 
+                      value={editingMenuItem.price}
+                      onChange={(e) => setEditingMenuItem({ ...editingMenuItem, price: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Category</label>
+                    <input 
+                      type="text" 
+                      value={editingMenuItem.category}
+                      onChange={(e) => setEditingMenuItem({ ...editingMenuItem, category: e.target.value })}
+                      className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Image URL</label>
+                  <input 
+                    type="text" 
+                    value={editingMenuItem.image || ''}
+                    onChange={(e) => setEditingMenuItem({ ...editingMenuItem, image: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-amber-500 outline-none transition-all"
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+              
+              <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex gap-3">
+                <button 
+                  onClick={() => setEditingMenuItem(null)}
+                  className="flex-1 py-3 rounded-2xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => updateMenuItem(editingMenuItem.id, editingMenuItem)}
+                  className="flex-1 py-3 bg-amber-500 text-white rounded-2xl font-bold shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

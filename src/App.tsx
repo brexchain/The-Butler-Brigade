@@ -55,15 +55,16 @@ type Gender = 'male' | 'female';
 interface Butler {
   id: string;
   name: string;
-  lang: Language;
+  languages: Language[];
   oxymoron: string;
   flag: string;
   personalityType: string;
   quotes: {
     welcome: string;
     bored: string;
-    upsell: string;
+    upsell: string[];
   };
+  isLadyOfHouse?: boolean;
 }
 
 interface MenuItem {
@@ -87,6 +88,7 @@ interface Message {
 interface Order {
   id: string;
   room: string;
+  guestName: string;
   items: CartItem[];
   total: number;
   status: 'pending' | 'preparing' | 'delivering' | 'completed';
@@ -109,7 +111,8 @@ const TRANSLATIONS: Record<Language, any> = {
     thanks: "Vielen Dank", 
     mood: "Raum-Ambiente",
     name: "Ihr Name",
-    wa_msg: "Hallo {butler}, ich möchte gerne bestellen für Zimmer {room}:%0A%0A{items}%0A%0AGesamt: {total}"
+    welcome_voucher: "Willkommens-Gutschein (-50%)",
+    wa_msg: "Hallo {butler}, ich möchte gerne bestellen für Zimmer {room}:%0A%0A{items}%0A%0A{discount_info}Gesamt: {total}"
   },
   EN: { 
     welcome: "Welcome", 
@@ -123,7 +126,8 @@ const TRANSLATIONS: Record<Language, any> = {
     thanks: "Thank You", 
     mood: "Room Mood",
     name: "Your Name",
-    wa_msg: "Hello {butler}, I would like to order for room {room}:%0A%0A{items}%0A%0ATotal: {total}"
+    welcome_voucher: "Welcome Voucher (-50%)",
+    wa_msg: "Hello {butler}, I would like to order for room {room}:%0A%0A{items}%0A%0A{discount_info}Total: {total}"
   },
   FR: { 
     welcome: "Bienvenue", 
@@ -136,7 +140,8 @@ const TRANSLATIONS: Record<Language, any> = {
     order: "Commander", 
     thanks: "Merci", 
     mood: "Ambiance",
-    wa_msg: "Bonjour {butler}, je voudrais commander pour la chambre {room}:%0A%0A{items}%0A%0ATotal: {total}"
+    welcome_voucher: "Bon de bienvenue (-50%)",
+    wa_msg: "Bonjour {butler}, je voudrais commander pour la chambre {room}:%0A%0A{items}%0A%0A{discount_info}Total: {total}"
   },
   ES: { 
     welcome: "Bienvenido", 
@@ -149,7 +154,8 @@ const TRANSLATIONS: Record<Language, any> = {
     order: "Pedir", 
     thanks: "Gracias", 
     mood: "Ambiente",
-    wa_msg: "Hola {butler}, me gustaría pedir para la habitación {room}:%0A%0A{items}%0A%0ATotal: {total}"
+    welcome_voucher: "Cupón de bienvenida (-50%)",
+    wa_msg: "Hola {butler}, me gustaría pedir para la habitación {room}:%0A%0A{items}%0A%0A{discount_info}Total: {total}"
   },
   IT: { 
     welcome: "Benvenuto", 
@@ -162,7 +168,8 @@ const TRANSLATIONS: Record<Language, any> = {
     order: "Ordina", 
     thanks: "Grazie", 
     mood: "Atmosfera",
-    wa_msg: "Ciao {butler}, vorrei ordinare per la camera {room}:%0A%0A{items}%0A%0ATotale: {total}"
+    welcome_voucher: "Buono di benvenuto (-50%)",
+    wa_msg: "Ciao {butler}, vorrei ordinare per la camera {room}:%0A%0A{items}%0A%0A{discount_info}Totale: {total}"
   },
   ZH: { 
     welcome: "欢迎", 
@@ -175,7 +182,8 @@ const TRANSLATIONS: Record<Language, any> = {
     order: "现在下单", 
     thanks: "谢谢", 
     mood: "房间氛围",
-    wa_msg: "您好 {butler}，我想为 {room} 号房间订购：%0A%0A{items}%0A%0A总计：{total}"
+    welcome_voucher: "欢迎代金券 (-50%)",
+    wa_msg: "您好 {butler}，我想为 {room} 号房间订购：%0A%0A{items}%0A%0A{discount_info}总计：{total}"
   },
   AR: { 
     welcome: "مرحباً", 
@@ -263,79 +271,121 @@ const BUTLERS: Butler[] = [
   { 
     id: 'hans', 
     name: 'Hans Pünktlich', 
-    lang: 'DE', 
+    languages: ['DE', 'EN'], 
     oxymoron: 'Obsessed with 12-minute precision', 
     flag: '🇩🇪',
     personalityType: 'The Perfectionist',
     quotes: {
       welcome: "Ordnung muss sein! Your room is exactly 22.4 degrees. Perfect.",
       bored: "Boredom is a lack of planning. I have scheduled a 14-minute walk to the Clock Museum for you.",
-      upsell: "Our Wagyu Burger is engineered for maximum satisfaction. It is the logical choice."
+      upsell: [
+        "Our Wagyu Burger is engineered for maximum satisfaction. It is the logical choice.",
+        "Precision is key. The Champagne is chilled to exactly 6 degrees.",
+        "A side of truffle fries would optimize your dining experience."
+      ]
     }
   },
   { 
     id: 'giovanni', 
     name: 'Giovanni Espresso', 
-    lang: 'IT', 
+    languages: ['IT', 'EN', 'ES'], 
     oxymoron: 'Talks with 4 hands at once', 
     flag: '🇮🇹',
     personalityType: 'The Passionate',
     quotes: {
       welcome: "Mamma Mia! You look like you need a coffee that tastes like sunshine!",
       bored: "Bored? In this city? Impossible! Go to the Piazza, find a beautiful stranger, and argue about pasta!",
-      upsell: "The Truffle Pasta... it is like a kiss from an angel. You order, I sing for you!"
+      upsell: [
+        "The Truffle Pasta... it is like a kiss from an angel. You order, I sing for you!",
+        "A bottle of Chianti? It is the blood of the earth!",
+        "Tiramisu for dessert? It means 'pick me up', and you look like you need it!"
+      ]
+    }
+  },
+  { 
+    id: 'lady', 
+    name: 'Lady of the House', 
+    languages: ['EN', 'DE', 'FR', 'IT', 'ES', 'ZH', 'JA', 'RU'], 
+    oxymoron: 'Polite soul of the house', 
+    flag: '🏰',
+    personalityType: 'The Matriarch',
+    isLadyOfHouse: true,
+    quotes: {
+      welcome: "Welcome home, dear guest. The house is yours, and I am here to ensure your absolute comfort.",
+      bored: "A quiet moment is a gift. Perhaps a book from our library or a gentle tea in the garden?",
+      upsell: [
+        "Our afternoon tea service is a tradition of elegance. May I prepare a table for you?",
+        "The evening selection of fine chocolates is quite exquisite tonight.",
+        "A glass of our vintage port would be a lovely way to end your evening."
+      ]
     }
   },
   { 
     id: 'yuki', 
     name: 'Yuki Zen', 
-    lang: 'JA', 
+    languages: ['JA', 'EN'], 
     oxymoron: 'Apologizes to the furniture', 
     flag: '🇯🇵',
     personalityType: 'The Ultra-Polite',
     quotes: {
       welcome: "I have bowed to your luggage three times. It is now very happy.",
       bored: "Perhaps a moment of silent meditation? Or I can find you the most efficient route to the Origami Center.",
-      upsell: "The Gold Cappuccino is a masterpiece of balance. It would be an honor to serve it."
+      upsell: [
+        "The Gold Cappuccino is a masterpiece of balance. It would be an honor to serve it.",
+        "Our Matcha selection is sourced from the finest gardens in Uji.",
+        "A bowl of Miso soup is a gentle hug for the soul."
+      ]
     }
   },
   { 
     id: 'svetlana', 
     name: 'Svetlana Iron', 
-    lang: 'RU', 
+    languages: ['RU', 'EN'], 
     oxymoron: 'Carries pianos for fun', 
     flag: '🇷🇺',
     personalityType: 'The No-Nonsense',
     quotes: {
       welcome: "Room is clean. Bed is flat. You are here. Good.",
       bored: "Boredom is for weak. Go outside. Walk in rain. Build character.",
-      upsell: "Caviar Royal. Is not food, is fuel for legends. Eat it."
+      upsell: [
+        "Caviar Royal. Is not food, is fuel for legends. Eat it.",
+        "Vodka on ice. Cold like Siberian winter. Good for blood.",
+        "Steak. Raw. Like nature intended."
+      ]
     }
   },
   { 
     id: 'raj', 
     name: 'Raj Spice', 
-    lang: 'HI', 
+    languages: ['HI', 'EN'], 
     oxymoron: 'Can explain 400 spices in 1 minute', 
     flag: '🇮🇳',
     personalityType: 'The Wise Storyteller',
     quotes: {
       welcome: "Namaste! The energy in this room is finally balanced now that you are here.",
       bored: "Let me tell you a story of the Maharaja who got lost in a spice market... or just go to the local bazaar!",
-      upsell: "The Lobster Thermidor has 12 secret spices. It will open your third eye. And your appetite."
+      upsell: [
+        "The Lobster Thermidor has 12 secret spices. It will open your third eye. And your appetite.",
+        "A cup of Masala Chai? It is a symphony of flavors.",
+        "Saffron rice. Each grain is a golden promise."
+      ]
     }
   },
   { 
     id: 'reginald', 
     name: 'Reginald Late', 
-    lang: 'EN', 
+    languages: ['EN'], 
     oxymoron: 'Always 15 minutes late for tea', 
     flag: '🇬🇧',
     personalityType: 'The Eccentric',
     quotes: {
       welcome: "Terribly sorry I'm late. I was debating a pigeon about the weather.",
       bored: "Bored? Why, I once spent three days staring at a very interesting damp patch. But do try the Jazz Club.",
-      upsell: "The Midnight Celebration. It's quite posh. Even the cigars have tiny top hats."
+      upsell: [
+        "The Midnight Celebration. It's quite posh. Even the cigars have tiny top hats.",
+        "A spot of Earl Grey? It's the only thing that makes sense in this world.",
+        "Cucumber sandwiches. Simple, yet devastatingly effective."
+      ]
     }
   }
 ];
@@ -706,9 +756,9 @@ const TetrisGame = ({ onBack }: { onBack: () => void }) => {
 };
 
 export default function App() {
-  const ButlerAvatar = ({ gender, lang, size = "md" }: { gender: Gender, lang: Language, size?: "sm" | "md" | "lg" }) => {
+  const ButlerAvatar = ({ gender, lang, size = "md", butler: passedButler }: { gender: Gender, lang: Language, size?: "sm" | "md" | "lg", butler?: Butler }) => {
     const dimensions = size === "sm" ? "w-10 h-10" : size === "md" ? "w-24 h-24" : "w-48 h-48";
-    const butler = customButlers.find(b => b.lang === lang);
+    const butler = passedButler || customButlers.find(b => b.languages?.includes(lang));
     
     return (
       <motion.div 
@@ -787,6 +837,7 @@ export default function App() {
   const [menuTab, setMenuTab] = useState<'food' | 'service' | 'concierge'>('food');
   const [showPillowMenu, setShowPillowMenu] = useState(false);
   const [selectedButler, setSelectedButler] = useState<Butler | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<Language>('EN');
   const [roomNumber, setRoomNumber] = useState('');
   const [guestName, setGuestName] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -830,8 +881,9 @@ export default function App() {
   // Smart Detection for Language & Butler
   useEffect(() => {
     if (!selectedButler) {
-      const userLang = navigator.language.split('-')[0].toUpperCase();
-      const matchingButler = customButlers.find(b => b.lang === userLang);
+      const userLang = navigator.language.split('-')[0].toUpperCase() as Language;
+      setSelectedLanguage(userLang);
+      const matchingButler = customButlers.find(b => b.languages?.includes(userLang));
       if (matchingButler) {
         setSelectedButler(matchingButler);
       }
@@ -961,17 +1013,26 @@ export default function App() {
     });
   };
 
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const isFirstOrder = !orders.some(o => o.room === roomNumber && o.guestName === guestName);
+  const discount = isFirstOrder ? subtotal * 0.5 : 0;
+  const total = subtotal - discount;
 
   const handleCheckout = () => {
-    const lang = selectedButler?.lang || 'EN';
+    const lang = selectedLanguage;
     const t = TRANSLATIONS[lang];
     const orderText = cart.map(i => `${i.quantity}x ${i.name}`).join('%0A');
     
+    let discountInfo = "";
+    if (isFirstOrder) {
+      discountInfo = `${t.welcome_voucher}: -${formatPrice(discount)}%0A`;
+    }
+
     let message = t.wa_msg
       .replace('{butler}', selectedButler?.name || '')
       .replace('{room}', roomNumber)
       .replace('{items}', orderText)
+      .replace('{discount_info}', discountInfo)
       .replace('{total}', formatPrice(total));
 
     // Routing logic
@@ -991,6 +1052,7 @@ export default function App() {
     const newOrder: Order = {
       id: Math.random().toString(36).substr(2, 9),
       room: roomNumber,
+      guestName: guestName,
       items: [...cart],
       total: total,
       status: 'pending',
@@ -1019,7 +1081,7 @@ export default function App() {
           systemInstruction: `You are ${selectedButler?.name}, a luxury hotel butler and expert local concierge. 
           Your personality type is: ${selectedButler?.personalityType}.
           Your unique trait: ${selectedButler?.oxymoron}.
-          Your primary language: ${selectedButler?.lang}.
+          Your primary language: ${selectedLanguage}.
           
           GUEST INFORMATION:
           - Guest Name: ${guestName || 'Valued Guest'}. Always address them by name in a way that fits your personality.
@@ -1241,7 +1303,7 @@ export default function App() {
             className="flex items-center gap-4 p-5 bg-white dark:bg-slate-800 rounded-[32px] border-2 border-transparent hover:border-amber-500 transition-all shadow-sm text-left group"
           >
             <div className="relative">
-              <ButlerAvatar gender={gender} lang={butler.lang} size="md" />
+              <ButlerAvatar gender={gender} lang={selectedLanguage} size="md" butler={butler} />
               <div className="absolute -bottom-1 -right-1 bg-white dark:bg-slate-900 rounded-full p-1 shadow-md border border-slate-100 dark:border-slate-800">
                 <span className="text-sm leading-none">{butler.flag}</span>
               </div>
@@ -1249,14 +1311,34 @@ export default function App() {
             <div className="flex-1">
               <div className="flex justify-between items-start">
                 <div>
-                  <h4 className="font-black text-lg leading-tight group-hover:text-amber-500 transition-colors">{butler.name}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-black text-lg leading-tight group-hover:text-amber-500 transition-colors">{butler.name}</h4>
+                    {butler.isLadyOfHouse && (
+                      <span className="px-1.5 py-0.5 bg-indigo-500 text-white text-[7px] font-black uppercase tracking-widest rounded-full">
+                        Lady of House
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[10px] font-black uppercase tracking-widest text-amber-500/60">{butler.personalityType}</span>
                 </div>
                 <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-amber-500 transition-all group-hover:translate-x-1" />
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 italic line-clamp-1">"{butler.quotes.welcome}"</p>
-              <div className="flex gap-2 mt-2">
-                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded-full text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{butler.lang}</span>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {butler.languages?.map(l => (
+                  <button 
+                    key={l}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedLanguage(l as Language);
+                      setSelectedButler(butler);
+                      setScreen('room');
+                    }}
+                    className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-tighter transition-all ${selectedLanguage === l ? 'bg-amber-500 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 hover:bg-slate-200'}`}
+                  >
+                    {l}
+                  </button>
+                ))}
                 <span className="px-2 py-0.5 bg-amber-50 dark:bg-amber-900/20 rounded-full text-[9px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tighter">{butler.oxymoron}</span>
               </div>
             </div>
@@ -1267,7 +1349,7 @@ export default function App() {
   );
 
   const getButlerMessage = (context: 'room' | 'thanks') => {
-    const lang = selectedButler?.lang || 'DE';
+    const lang = selectedLanguage;
     const personality = selectedButler?.oxymoron || '';
     
     const messages: Record<string, Record<'room' | 'thanks', string>> = {
@@ -1319,7 +1401,7 @@ export default function App() {
   };
 
   const renderRoomInput = () => {
-    const lang = selectedButler?.lang || 'DE';
+    const lang = selectedLanguage;
     const t = TRANSLATIONS[lang];
     
     return (
@@ -1329,7 +1411,7 @@ export default function App() {
       className="flex flex-col items-center justify-center min-h-screen p-6 text-center"
     >
       <div className="mb-8">
-        <ButlerAvatar gender={gender} lang={selectedButler?.lang || 'DE'} size="md" />
+        <ButlerAvatar gender={gender} lang={selectedLanguage} size="md" butler={selectedButler || undefined} />
         <p className="mt-4 text-xl font-medium italic">"{getButlerMessage('room')}"</p>
       </div>
       <div className="w-full max-w-xs space-y-4">
@@ -1366,7 +1448,7 @@ export default function App() {
   };
 
   const renderMenu = () => {
-    const lang = selectedButler?.lang || 'DE';
+    const lang = selectedLanguage;
     const t = TRANSLATIONS[lang];
     const hour = new Date().getHours();
     const greeting = hour < 12 ? (lang === 'DE' ? 'Guten Morgen' : 'Good Morning') : hour < 18 ? (lang === 'DE' ? 'Guten Tag' : 'Good Day') : (lang === 'DE' ? 'Guten Abend' : 'Good Evening');
@@ -1460,6 +1542,29 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {/* Welcome Discount Banner */}
+        {isFirstOrder && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-2 p-3 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl text-white shadow-lg shadow-green-500/20 flex items-center justify-between overflow-hidden relative group"
+          >
+            <div className="flex items-center gap-3 relative z-10">
+              <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-80">{t.welcome}</p>
+                <p className="text-sm font-bold">{t.welcome_voucher}</p>
+              </div>
+            </div>
+            <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700" />
+            <div className="relative z-10 bg-white text-green-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+              Active
+            </div>
+          </motion.div>
+        )}
 
         {/* Real-time Order Status */}
         {latestOrder && (
@@ -2061,11 +2166,13 @@ export default function App() {
               {cart.length > 0 && (
                 <div className="mb-8 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-200 dark:border-amber-800/50 flex items-center gap-4">
                   <div className="w-12 h-12 flex-shrink-0">
-                    <ButlerAvatar gender={gender} lang={selectedButler?.lang || 'DE'} size="sm" />
+                    <ButlerAvatar gender={gender} lang={selectedLanguage} size="sm" />
                   </div>
                   <div className="flex-1">
                     <p className="text-xs font-black uppercase text-amber-600 dark:text-amber-400">Butler Suggests</p>
-                    <p className="text-sm font-medium italic">"A glass of Champagne would pair perfectly with your selection."</p>
+                    <p className="text-sm font-medium italic">
+                      "{selectedButler?.quotes.upsell[Math.floor(Math.random() * (selectedButler?.quotes.upsell.length || 1))] || 'A perfect choice, dear guest.'}"
+                    </p>
                   </div>
                 </div>
               )}
@@ -2138,6 +2245,17 @@ export default function App() {
                       </motion.button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Discount Summary */}
+              {isFirstOrder && subtotal > 0 && (
+                <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-2xl border border-green-200 dark:border-green-800/50 flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-green-500" />
+                    <span className="text-sm font-bold text-green-700 dark:text-green-400">{TRANSLATIONS[selectedLanguage].welcome_voucher}</span>
+                  </div>
+                  <span className="text-sm font-black text-green-600">-{formatPrice(discount)}</span>
                 </div>
               )}
 
@@ -2329,7 +2447,7 @@ export default function App() {
           <header className="p-6 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="relative">
-                <ButlerAvatar gender={gender} lang={selectedButler?.lang || 'DE'} size="sm" />
+                <ButlerAvatar gender={gender} lang={selectedLanguage} size="sm" butler={selectedButler || undefined} />
                 <div className="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800" />
               </div>
               <div>
@@ -2453,7 +2571,7 @@ export default function App() {
   );
 
   const renderThanks = () => {
-    const lang = selectedButler?.lang || 'DE';
+    const lang = selectedLanguage;
     const t = TRANSLATIONS[lang];
     
     const latestOrder = orders.find(o => o.room === roomNumber && o.status !== 'completed');
