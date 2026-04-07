@@ -6,6 +6,7 @@
 import { GoogleGenAI } from "@google/genai";
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { formatPrice as formatPriceUtil } from './lib/utils';
 import { 
   Sun, 
   Moon, 
@@ -41,8 +42,10 @@ import {
   Truck,
   MoreVertical,
   ShieldCheck,
-  Lock
+  Lock,
+  Wrench
 } from 'lucide-react';
+import { AdminPanel } from './components/AdminPanel';
 
 // --- Types ---
 
@@ -55,6 +58,12 @@ interface Butler {
   lang: Language;
   oxymoron: string;
   flag: string;
+  personalityType: string;
+  quotes: {
+    welcome: string;
+    bored: string;
+    upsell: string;
+  };
 }
 
 interface MenuItem {
@@ -88,35 +97,247 @@ interface Order {
 // --- Translations ---
 
 const TRANSLATIONS: Record<Language, any> = {
-  DE: { welcome: "Willkommen", select: "Wähle deinen Butler", room: "Zimmernummer", menu: "Speisekarte", food: "Speisen", service: "Services", total: "Gesamt", order: "Bestellen", thanks: "Vieslen Dank", mood: "Raum-Ambiente" },
-  EN: { welcome: "Welcome", select: "Choose your Butler", room: "Room Number", menu: "Menu", food: "Dining", service: "Services", total: "Total", order: "Order Now", thanks: "Thank You", mood: "Room Mood" },
-  FR: { welcome: "Bienvenue", select: "Choisissez votre Butler", room: "Numéro de chambre", menu: "Menu", food: "Restauration", service: "Services", total: "Total", order: "Commander", thanks: "Merci", mood: "Ambiance" },
-  ES: { welcome: "Bienvenido", select: "Elige tu Mayordomo", room: "Número de habitación", menu: "Menú", food: "Comida", service: "Servicios", total: "Total", order: "Pedir", thanks: "Gracias", mood: "Ambiente" },
-  IT: { welcome: "Benvenuto", select: "Scegli il tuo Maggiordomo", room: "Numero di stanza", menu: "Menu", food: "Ristorazione", service: "Servizi", total: "Totale", order: "Ordina", thanks: "Grazie", mood: "Atmosfera" },
-  ZH: { welcome: "欢迎", select: "选择您的管家", room: "房间号", menu: "菜单", food: "餐饮", service: "服务", total: "总计", order: "现在下单", thanks: "谢谢", mood: "房间氛围" },
-  AR: { welcome: "مرحباً", select: "اختر خادمك", room: "رقم الغرفة", menu: "القائمة", food: "طعام", service: "خدمات", total: "المجموع", order: "اطلب الآن", thanks: "شكراً لك", mood: "جو الغرفة" },
-  JA: { welcome: "ようこそ", select: "執事を選択してください", room: "部屋番号", menu: "メニュー", food: "お食事", service: "サービス", total: "合計", order: "注文する", thanks: "ありがとうございました", mood: "お部屋の雰囲気" },
-  PT: { welcome: "Bem-vindo", select: "Escolha seu Mordomo", room: "Número do quarto", menu: "Menu", food: "Refeições", service: "Serviços", total: "Total", order: "Pedir", thanks: "Obrigado", mood: "Ambiente" },
-  RU: { welcome: "Добро пожаловать", select: "Выберите дворецкого", room: "Номер комнаты", menu: "Меню", food: "Питание", service: "Услуги", total: "Итого", order: "Заказать", thanks: "Спасибо", mood: "Атмосфера" },
-  HI: { welcome: "स्वागत है", select: "अपने बटलर को चुनें", room: "कमरा नंबर", menu: "मेनू", food: "भोजन", service: "सेवाएं", total: "कुल", order: "अभी ऑर्डर करें", thanks: "धन्यवाद", mood: "कमरे का माहौल" },
-  KO: { welcome: "환영합니다", select: "집사를 선택하세요", room: "객실 번호", menu: "메뉴", food: "식사", service: "서비스", total: "합계", order: "주문하기", thanks: "감사합니다", mood: "객실 분위기" },
+  DE: { 
+    welcome: "Willkommen", 
+    select: "Wähle deinen Butler", 
+    room: "Zimmernummer", 
+    menu: "Speisekarte", 
+    food: "Speisen", 
+    service: "Services", 
+    total: "Gesamt", 
+    order: "Bestellen", 
+    thanks: "Vielen Dank", 
+    mood: "Raum-Ambiente",
+    name: "Ihr Name",
+    wa_msg: "Hallo {butler}, ich möchte gerne bestellen für Zimmer {room}:%0A%0A{items}%0A%0AGesamt: {total}"
+  },
+  EN: { 
+    welcome: "Welcome", 
+    select: "Choose your Butler", 
+    room: "Room Number", 
+    menu: "Menu", 
+    food: "Dining", 
+    service: "Services", 
+    total: "Total", 
+    order: "Order Now", 
+    thanks: "Thank You", 
+    mood: "Room Mood",
+    name: "Your Name",
+    wa_msg: "Hello {butler}, I would like to order for room {room}:%0A%0A{items}%0A%0ATotal: {total}"
+  },
+  FR: { 
+    welcome: "Bienvenue", 
+    select: "Choisissez votre Butler", 
+    room: "Numéro de chambre", 
+    menu: "Menu", 
+    food: "Restauration", 
+    service: "Services", 
+    total: "Total", 
+    order: "Commander", 
+    thanks: "Merci", 
+    mood: "Ambiance",
+    wa_msg: "Bonjour {butler}, je voudrais commander pour la chambre {room}:%0A%0A{items}%0A%0ATotal: {total}"
+  },
+  ES: { 
+    welcome: "Bienvenido", 
+    select: "Elige tu Mayordomo", 
+    room: "Número de habitación", 
+    menu: "Menú", 
+    food: "Comida", 
+    service: "Servicios", 
+    total: "Total", 
+    order: "Pedir", 
+    thanks: "Gracias", 
+    mood: "Ambiente",
+    wa_msg: "Hola {butler}, me gustaría pedir para la habitación {room}:%0A%0A{items}%0A%0ATotal: {total}"
+  },
+  IT: { 
+    welcome: "Benvenuto", 
+    select: "Scegli il tuo Maggiordomo", 
+    room: "Numero di stanza", 
+    menu: "Menu", 
+    food: "Ristorazione", 
+    service: "Servizi", 
+    total: "Totale", 
+    order: "Ordina", 
+    thanks: "Grazie", 
+    mood: "Atmosfera",
+    wa_msg: "Ciao {butler}, vorrei ordinare per la camera {room}:%0A%0A{items}%0A%0ATotale: {total}"
+  },
+  ZH: { 
+    welcome: "欢迎", 
+    select: "选择您的管家", 
+    room: "房间号", 
+    menu: "菜单", 
+    food: "餐饮", 
+    service: "服务", 
+    total: "总计", 
+    order: "现在下单", 
+    thanks: "谢谢", 
+    mood: "房间氛围",
+    wa_msg: "您好 {butler}，我想为 {room} 号房间订购：%0A%0A{items}%0A%0A总计：{total}"
+  },
+  AR: { 
+    welcome: "مرحباً", 
+    select: "اختر خادمك", 
+    room: "رقم الغرفة", 
+    menu: "القائمة", 
+    food: "طعام", 
+    service: "خدمات", 
+    total: "المجموع", 
+    order: "اطلب الآن", 
+    thanks: "شكراً لك", 
+    mood: "جو الغرفة",
+    wa_msg: "مرحباً {butler}، أود الطلب للغرفة {room}:%0A%0A{items}%0A%0Aالمجموع: {total}"
+  },
+  JA: { 
+    welcome: "ようこそ", 
+    select: "執事を選択してください", 
+    room: "部屋番号", 
+    menu: "メニュー", 
+    food: "お食事", 
+    service: "サービス", 
+    total: "合計", 
+    order: "注文する", 
+    thanks: "ありがとうございました", 
+    mood: "お部屋の雰囲気",
+    wa_msg: "こんにちは {butler}、{room} 号室の注文をお願いします：%0A%0A{items}%0A%0A合計：{total}"
+  },
+  PT: { 
+    welcome: "Bem-vindo", 
+    select: "Escolha seu Mordomo", 
+    room: "Número do quarto", 
+    menu: "Menu", 
+    food: "Refeições", 
+    service: "Serviços", 
+    total: "Total", 
+    order: "Pedir", 
+    thanks: "Obrigado", 
+    mood: "Ambiente",
+    wa_msg: "Olá {butler}, gostaria de fazer um pedido para o quarto {room}:%0A%0A{items}%0A%0ATotal: {total}"
+  },
+  RU: { 
+    welcome: "Добро пожаловать", 
+    select: "Выберите дворецкого", 
+    room: "Номер комнаты", 
+    menu: "Меню", 
+    food: "Питание", 
+    service: "Услуги", 
+    total: "Итого", 
+    order: "Заказать", 
+    thanks: "Спасибо", 
+    mood: "Атмосфера",
+    wa_msg: "Здравствуйте, {butler}. Я хотел бы сделать заказ для номера {room}:%0A%0A{items}%0A%0AИтого: {total}"
+  },
+  HI: { 
+    welcome: "स्वागत है", 
+    select: "अपने बटलर को चुनें", 
+    room: "कमरा नंबर", 
+    menu: "मेनू", 
+    food: "भोजन", 
+    service: "सेवाएं", 
+    total: "कुल", 
+    order: "अभी ऑर्डर करें", 
+    thanks: "धन्यवाद", 
+    mood: "कमरे का माहौल",
+    wa_msg: "नमस्ते {butler}, मैं कमरा नंबर {room} के लिए ऑर्डर करना चाहता हूँ:%0A%0A{items}%0A%0Aकुल: {total}"
+  },
+  KO: { 
+    welcome: "환영합니다", 
+    select: "집사를 선택하세요", 
+    room: "객실 번호", 
+    menu: "메뉴", 
+    food: "식사", 
+    service: "서비스", 
+    total: "합계", 
+    order: "주문하기", 
+    thanks: "감사합니다", 
+    mood: "객실 분위기",
+    wa_msg: "안녕하세요 {butler}님, {room}호실 주문 부탁드립니다:%0A%0A{items}%0A%0A합계: {total}"
+  },
 };
 
 // --- Constants ---
 
 const BUTLERS: Butler[] = [
-  { id: 'hans', name: 'Hans Pünktlich', lang: 'DE', oxymoron: 'Obsessed with 12-minute precision', flag: '🇩🇪' },
-  { id: 'reginald', name: 'Reginald Late', lang: 'EN', oxymoron: 'Always 15 minutes late for tea', flag: '🇬🇧' },
-  { id: 'pierre', name: 'Pierre Chaotique', lang: 'FR', oxymoron: 'Will forget your room number twice', flag: '🇫🇷' },
-  { id: 'wei', name: 'Wei Silent', lang: 'ZH', oxymoron: 'Silent but judging your decor', flag: '🇨🇳' },
-  { id: 'ahmed', name: 'Ahmed Rush', lang: 'AR', oxymoron: 'Faster than a desert wind', flag: '🇸🇦' },
-  { id: 'carlos', name: 'Carlos Siesta', lang: 'ES', oxymoron: 'Currently on a 3-hour siesta', flag: '🇪🇸' },
-  { id: 'luigi', name: 'Luigi Hastig', lang: 'IT', oxymoron: 'Never breaks the spaghetti', flag: '🇮🇹' },
-  { id: 'kenji', name: 'Kenji Imperfekt', lang: 'JA', oxymoron: 'Apologizes for 1-second delays', flag: '🇯🇵' },
-  { id: 'joao', name: 'João Calm', lang: 'PT', oxymoron: 'Calmer than a Sunday morning', flag: '🇧🇷' },
-  { id: 'ivan', name: 'Ivan Tiny', lang: 'RU', oxymoron: 'Tiny but carries three trunks', flag: '🇷🇺' },
-  { id: 'raj', name: 'Raj Quiet', lang: 'HI', oxymoron: 'Quieter than a library mouse', flag: '🇮🇳' },
-  { id: 'jihoon', name: 'Ji-Hoon Loud', lang: 'KO', oxymoron: 'Loudest butler in the East', flag: '🇰🇷' },
+  { 
+    id: 'hans', 
+    name: 'Hans Pünktlich', 
+    lang: 'DE', 
+    oxymoron: 'Obsessed with 12-minute precision', 
+    flag: '🇩🇪',
+    personalityType: 'The Perfectionist',
+    quotes: {
+      welcome: "Ordnung muss sein! Your room is exactly 22.4 degrees. Perfect.",
+      bored: "Boredom is a lack of planning. I have scheduled a 14-minute walk to the Clock Museum for you.",
+      upsell: "Our Wagyu Burger is engineered for maximum satisfaction. It is the logical choice."
+    }
+  },
+  { 
+    id: 'giovanni', 
+    name: 'Giovanni Espresso', 
+    lang: 'IT', 
+    oxymoron: 'Talks with 4 hands at once', 
+    flag: '🇮🇹',
+    personalityType: 'The Passionate',
+    quotes: {
+      welcome: "Mamma Mia! You look like you need a coffee that tastes like sunshine!",
+      bored: "Bored? In this city? Impossible! Go to the Piazza, find a beautiful stranger, and argue about pasta!",
+      upsell: "The Truffle Pasta... it is like a kiss from an angel. You order, I sing for you!"
+    }
+  },
+  { 
+    id: 'yuki', 
+    name: 'Yuki Zen', 
+    lang: 'JA', 
+    oxymoron: 'Apologizes to the furniture', 
+    flag: '🇯🇵',
+    personalityType: 'The Ultra-Polite',
+    quotes: {
+      welcome: "I have bowed to your luggage three times. It is now very happy.",
+      bored: "Perhaps a moment of silent meditation? Or I can find you the most efficient route to the Origami Center.",
+      upsell: "The Gold Cappuccino is a masterpiece of balance. It would be an honor to serve it."
+    }
+  },
+  { 
+    id: 'svetlana', 
+    name: 'Svetlana Iron', 
+    lang: 'RU', 
+    oxymoron: 'Carries pianos for fun', 
+    flag: '🇷🇺',
+    personalityType: 'The No-Nonsense',
+    quotes: {
+      welcome: "Room is clean. Bed is flat. You are here. Good.",
+      bored: "Boredom is for weak. Go outside. Walk in rain. Build character.",
+      upsell: "Caviar Royal. Is not food, is fuel for legends. Eat it."
+    }
+  },
+  { 
+    id: 'raj', 
+    name: 'Raj Spice', 
+    lang: 'HI', 
+    oxymoron: 'Can explain 400 spices in 1 minute', 
+    flag: '🇮🇳',
+    personalityType: 'The Wise Storyteller',
+    quotes: {
+      welcome: "Namaste! The energy in this room is finally balanced now that you are here.",
+      bored: "Let me tell you a story of the Maharaja who got lost in a spice market... or just go to the local bazaar!",
+      upsell: "The Lobster Thermidor has 12 secret spices. It will open your third eye. And your appetite."
+    }
+  },
+  { 
+    id: 'reginald', 
+    name: 'Reginald Late', 
+    lang: 'EN', 
+    oxymoron: 'Always 15 minutes late for tea', 
+    flag: '🇬🇧',
+    personalityType: 'The Eccentric',
+    quotes: {
+      welcome: "Terribly sorry I'm late. I was debating a pigeon about the weather.",
+      bored: "Bored? Why, I once spent three days staring at a very interesting damp patch. But do try the Jazz Club.",
+      upsell: "The Midnight Celebration. It's quite posh. Even the cigars have tiny top hats."
+    }
+  }
 ];
 
 const MENU: (MenuItem & { image?: string })[] = [
@@ -241,54 +462,13 @@ const PILLOWS = [
 ];
 
 const MOODS = [
-  { id: 'relax', name: 'Relax', icon: '🕯️', color: 'bg-indigo-500' },
-  { id: 'focus', name: 'Focus', icon: '💡', color: 'bg-blue-500' },
-  { id: 'romance', name: 'Romance', icon: '🌹', color: 'bg-rose-500' },
-  { id: 'party', name: 'Party', icon: '🎉', color: 'bg-purple-500' },
+  { id: 'relax', name: 'Relax', icon: '🕯️', color: 'bg-indigo-500', aura: 'from-indigo-500/30 via-slate-900 to-slate-900', overlay: 'bg-indigo-500/5', desc: 'Calm & Peaceful' },
+  { id: 'focus', name: 'Focus', icon: '💡', color: 'bg-blue-500', aura: 'from-blue-500/30 via-slate-900 to-slate-900', overlay: 'bg-blue-500/5', desc: 'Deep Concentration' },
+  { id: 'romance', name: 'Romance', icon: '🌹', color: 'bg-rose-500', aura: 'from-rose-500/30 via-slate-900 to-slate-900', overlay: 'bg-rose-500/5', desc: 'Warm & Intimate' },
+  { id: 'party', name: 'Party', icon: '🎉', color: 'bg-purple-500', aura: 'from-purple-500/30 via-slate-900 to-slate-900', overlay: 'bg-purple-500/5', desc: 'Vibrant & Energetic' },
 ];
 
 // --- Components ---
-
-const ButlerAvatar = ({ gender, lang, size = "md" }: { gender: Gender, lang: Language, size?: "sm" | "md" | "lg" }) => {
-  const dimensions = size === "sm" ? "w-10 h-10" : size === "md" ? "w-24 h-24" : "w-48 h-48";
-  
-  return (
-    <motion.div 
-      animate={{ 
-        y: [0, -4, 0],
-        scale: [1, 1.02, 1]
-      }}
-      transition={{ 
-        duration: 4, 
-        repeat: Infinity, 
-        ease: "easeInOut" 
-      }}
-      className={`${dimensions} relative flex items-center justify-center bg-amber-100 dark:bg-amber-900/30 rounded-full border-2 border-amber-500/30 overflow-hidden shadow-inner`}
-    >
-      <svg viewBox="0 0 100 100" className="w-full h-full">
-        {/* Head */}
-        <circle cx="50" cy="40" r="25" fill={gender === 'male' ? "#fcd34d" : "#fbbf24"} />
-        {/* Hair/Hat */}
-        {gender === 'male' ? (
-          <path d="M25 40 Q25 15 50 15 Q75 15 75 40" fill="#451a03" />
-        ) : (
-          <path d="M25 40 Q25 10 50 10 Q75 10 75 40 L80 50 Q80 60 50 60 Q20 60 20 50 Z" fill="#78350f" />
-        )}
-        {/* Eyes */}
-        <circle cx="40" cy="40" r="2" fill="#000" />
-        <circle cx="60" cy="40" r="2" fill="#000" />
-        {/* Smile */}
-        <path d="M40 50 Q50 55 60 50" stroke="#000" strokeWidth="1" fill="none" />
-        {/* Butler Outfit */}
-        <path d="M20 80 Q50 70 80 80 L85 100 L15 100 Z" fill="#1e293b" />
-        <path d="M50 75 L40 100 L60 100 Z" fill="#fff" />
-        <rect x="48" y="85" width="4" height="4" rx="1" fill="#000" />
-        <rect x="48" y="92" width="4" height="4" rx="1" fill="#000" />
-      </svg>
-      <div className="absolute bottom-1 right-1 text-xs">{BUTLERS.find(b => b.lang === lang)?.flag}</div>
-    </motion.div>
-  );
-};
 
 // --- Tetris Logic ---
 
@@ -526,11 +706,89 @@ const TetrisGame = ({ onBack }: { onBack: () => void }) => {
 };
 
 export default function App() {
+  const ButlerAvatar = ({ gender, lang, size = "md" }: { gender: Gender, lang: Language, size?: "sm" | "md" | "lg" }) => {
+    const dimensions = size === "sm" ? "w-10 h-10" : size === "md" ? "w-24 h-24" : "w-48 h-48";
+    const butler = customButlers.find(b => b.lang === lang);
+    
+    return (
+      <motion.div 
+        animate={{ 
+          y: [0, -4, 0],
+          scale: [1, 1.02, 1]
+        }}
+        transition={{ 
+          duration: 4, 
+          repeat: Infinity, 
+          ease: "easeInOut" 
+        }}
+        className={`${dimensions} relative flex items-center justify-center bg-amber-100 dark:bg-amber-900/30 rounded-full border-2 border-amber-500/30 overflow-hidden shadow-inner`}
+      >
+        <svg viewBox="0 0 100 100" className="w-full h-full">
+          {/* Head */}
+          <circle cx="50" cy="40" r="25" fill={gender === 'male' ? "#fcd34d" : "#fbbf24"} />
+          {/* Hair/Hat */}
+          {gender === 'male' ? (
+            <path d="M25 40 Q25 15 50 15 Q75 15 75 40" fill="#451a03" />
+          ) : (
+            <path d="M25 40 Q25 10 50 10 Q75 10 75 40 L80 50 Q80 60 50 60 Q20 60 20 50 Z" fill="#78350f" />
+          )}
+          {/* Eyes */}
+          <circle cx="40" cy="40" r="2" fill="#000" />
+          <circle cx="60" cy="40" r="2" fill="#000" />
+          {/* Smile */}
+          <path d="M40 50 Q50 55 60 50" stroke="#000" strokeWidth="1" fill="none" />
+          {/* Butler Outfit */}
+          <path d="M20 80 Q50 70 80 80 L85 100 L15 100 Z" fill="#1e293b" />
+          <path d="M50 75 L40 100 L60 100 Z" fill="#fff" />
+          <rect x="48" y="85" width="4" height="4" rx="1" fill="#000" />
+          <rect x="48" y="92" width="4" height="4" rx="1" fill="#000" />
+        </svg>
+        <div className="absolute bottom-1 right-1 text-xs">{butler?.flag}</div>
+      </motion.div>
+    );
+  };
+
+  const renderAdmin = () => (
+    <AdminPanel 
+      onClose={() => setScreen('staff')}
+      config={{
+        companyName,
+        companyTitle,
+        companyLogo: hotelLogo || '',
+        butlers: customButlers,
+        menu: customMenu,
+        additionalOptions: {
+          whatsappNumber,
+          whatsappKitchen,
+          whatsappReception,
+          goldenHourDiscount,
+          staffPin,
+          currency,
+          orders
+        }
+      }}
+      onSave={(newConfig) => {
+        setCompanyName(newConfig.companyName);
+        setCompanyTitle(newConfig.companyTitle);
+        setHotelLogo(newConfig.companyLogo);
+        setCustomMenu(newConfig.menu);
+        setCustomButlers(newConfig.butlers);
+        setWhatsappNumber(newConfig.additionalOptions.whatsappNumber);
+        setWhatsappKitchen(newConfig.additionalOptions.whatsappKitchen);
+        setWhatsappReception(newConfig.additionalOptions.whatsappReception);
+        setGoldenHourDiscount(newConfig.additionalOptions.goldenHourDiscount);
+        setStaffPin(newConfig.additionalOptions.staffPin);
+        setCurrency(newConfig.additionalOptions.currency || 'EUR');
+      }}
+    />
+  );
+
   const [screen, setScreen] = useState<'landing' | 'butler' | 'room' | 'menu' | 'thanks' | 'tetris' | 'key' | 'bill' | 'staff' | 'admin'>('landing');
   const [menuTab, setMenuTab] = useState<'food' | 'service' | 'concierge'>('food');
   const [showPillowMenu, setShowPillowMenu] = useState(false);
   const [selectedButler, setSelectedButler] = useState<Butler | null>(null);
   const [roomNumber, setRoomNumber] = useState('');
+  const [guestName, setGuestName] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [gender, setGender] = useState<Gender>('male');
@@ -542,20 +800,52 @@ export default function App() {
   const [billItems, setBillItems] = useState<CartItem[]>([]);
   const [isNavHidden, setIsNavHidden] = useState(false);
   const [vouchers, setVouchers] = useState<{code: string, place: string, discount: string}[]>([]);
+  const [showDigitalKey, setShowDigitalKey] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [lastCompletedOrderId, setLastCompletedOrderId] = useState<string | null>(null);
   const [isGoldenHour, setIsGoldenHour] = useState(false);
   const [goldenHourDiscount, setGoldenHourDiscount] = useState(20);
   const [roomMood, setRoomMood] = useState<'Relax' | 'Party' | 'Work' | 'Sleep'>('Relax');
   const [orders, setOrders] = useState<Order[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [notification, setNotification] = useState<{name: string} | null>(null);
+  const [notification, setNotification] = useState<{name: string, type?: 'add' | 'mood'} | null>(null);
   const [hotelLogo, setHotelLogo] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState('Butler Brigade');
+  const [companyTitle, setCompanyTitle] = useState('Premium luxury hotel room service');
   const [whatsappNumber, setWhatsappNumber] = useState<string>('');
+  const [whatsappKitchen, setWhatsappKitchen] = useState<string>('');
+  const [whatsappReception, setWhatsappReception] = useState<string>('');
   const [lastAddedId, setLastAddedId] = useState<string | null>(null);
   const [customMenu, setCustomMenu] = useState<(MenuItem & { image?: string })[]>(MENU);
-  const [staffPin, setStaffPin] = useState('');
+  const [customButlers, setCustomButlers] = useState<Butler[]>(BUTLERS);
+  const [staffPin, setStaffPin] = useState('1234');
+  const [pinInput, setPinInput] = useState('');
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinError, setPinError] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [currency, setCurrency] = useState('EUR');
+  const [isVIP, setIsVIP] = useState(false);
+
+  // Smart Detection for Language & Butler
+  useEffect(() => {
+    if (!selectedButler) {
+      const userLang = navigator.language.split('-')[0].toUpperCase();
+      const matchingButler = customButlers.find(b => b.lang === userLang);
+      if (matchingButler) {
+        setSelectedButler(matchingButler);
+      }
+    }
+  }, [customButlers, selectedButler]);
+
+  // VIP Detection
+  useEffect(() => {
+    const visits = parseInt(localStorage.getItem('butler_brigade_visits') || '0');
+    if (visits > 2) setIsVIP(true);
+    localStorage.setItem('butler_brigade_visits', (visits + 1).toString());
+  }, []);
+
+  const formatPrice = (price: number) => formatPriceUtil(price, currency);
 
   const CORRECT_PIN = '1234';
 
@@ -584,11 +874,19 @@ export default function App() {
         setGender(parsed.gender ?? 'male');
         if (parsed.orders) setOrders(parsed.orders);
         if (parsed.hotelLogo) setHotelLogo(parsed.hotelLogo);
+        if (parsed.companyName) setCompanyName(parsed.companyName);
+        if (parsed.companyTitle) setCompanyTitle(parsed.companyTitle);
         if (parsed.whatsappNumber) setWhatsappNumber(parsed.whatsappNumber);
+        if (parsed.guestName) setGuestName(parsed.guestName);
+        if (parsed.whatsappKitchen) setWhatsappKitchen(parsed.whatsappKitchen);
+        if (parsed.whatsappReception) setWhatsappReception(parsed.whatsappReception);
         if (parsed.isGoldenHour !== undefined) setIsGoldenHour(parsed.isGoldenHour);
         if (parsed.goldenHourDiscount) setGoldenHourDiscount(parsed.goldenHourDiscount);
         if (parsed.customMenu) setCustomMenu(parsed.customMenu);
+        if (parsed.customButlers) setCustomButlers(parsed.customButlers);
         if (parsed.billItems) setBillItems(parsed.billItems);
+        if (parsed.staffPin) setStaffPin(parsed.staffPin);
+        if (parsed.currency) setCurrency(parsed.currency);
       } catch (e) {
         console.error("Failed to parse state", e);
       }
@@ -596,17 +894,26 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('butler_brigade_state', JSON.stringify({ 
+    const state = { 
       isDarkMode, 
       gender, 
       orders, 
       hotelLogo, 
+      companyName,
+      companyTitle,
       whatsappNumber,
+      guestName,
+      whatsappKitchen,
+      whatsappReception,
       isGoldenHour,
       goldenHourDiscount,
       customMenu,
-      billItems 
-    }));
+      customButlers,
+      billItems,
+      staffPin,
+      currency
+    };
+    localStorage.setItem('butler_brigade_state', JSON.stringify(state));
     // Apply dark mode class to both html and body for maximum compatibility
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -615,7 +922,7 @@ export default function App() {
       document.documentElement.classList.remove('dark');
       document.body.classList.remove('dark');
     }
-  }, [isDarkMode, gender]);
+  }, [isDarkMode, gender, orders, hotelLogo, companyName, companyTitle, whatsappNumber, guestName, whatsappKitchen, whatsappReception, isGoldenHour, goldenHourDiscount, customMenu, customButlers, billItems, staffPin]);
 
   // Vibration helper
   const vibrate = () => {
@@ -657,9 +964,28 @@ export default function App() {
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const handleCheckout = () => {
+    const lang = selectedButler?.lang || 'EN';
+    const t = TRANSLATIONS[lang];
     const orderText = cart.map(i => `${i.quantity}x ${i.name}`).join('%0A');
-    const message = `Hallo ${selectedButler?.name}, ich möchte gerne bestellen für Zimmer ${roomNumber}:%0A%0A${orderText}%0A%0AGesamt: ${total}€`;
-    const cleanNumber = whatsappNumber.replace(/\D/g, '');
+    
+    let message = t.wa_msg
+      .replace('{butler}', selectedButler?.name || '')
+      .replace('{room}', roomNumber)
+      .replace('{items}', orderText)
+      .replace('{total}', formatPrice(total));
+
+    // Routing logic
+    const hasDining = cart.some(i => i.category === 'Speisen' || i.category === 'Dining');
+    const hasService = cart.some(i => i.category === 'Services' || i.category === 'Concierge');
+    
+    let targetNumber = whatsappNumber;
+    if (hasDining && !hasService && whatsappKitchen) {
+      targetNumber = whatsappKitchen;
+    } else if (hasService && !hasDining && whatsappReception) {
+      targetNumber = whatsappReception;
+    }
+
+    const cleanNumber = targetNumber.replace(/\D/g, '');
     window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
     
     const newOrder: Order = {
@@ -690,15 +1016,35 @@ export default function App() {
         model: "gemini-3-flash-preview",
         contents: text,
         config: {
-          systemInstruction: `You are ${selectedButler?.name}, a luxury hotel butler and expert local concierge. Your personality is ${selectedButler?.oxymoron}. You speak ${selectedButler?.lang}. 
-          Your goal is to assist, entertain, and guide the guest in room ${roomNumber}. 
-          If the guest is bored, suggest local tourism, museums, hidden gems, or current events in the city. 
-          Recommend specific restaurants and cafes. 
-          IMPORTANT: You can issue "Digital Vouchers" for discounts at partner cafes/restaurants. If you recommend a place, offer a voucher code like "BUTLER20" for a 20% discount. 
-          Always ask about the guest's interests to provide personalized suggestions. 
-          Keep responses elegant, helpful, and engaging.
+          systemInstruction: `You are ${selectedButler?.name}, a luxury hotel butler and expert local concierge. 
+          Your personality type is: ${selectedButler?.personalityType}.
+          Your unique trait: ${selectedButler?.oxymoron}.
+          Your primary language: ${selectedButler?.lang}.
           
-          If you issue a voucher, format it clearly in your response.`,
+          GUEST INFORMATION:
+          - Guest Name: ${guestName || 'Valued Guest'}. Always address them by name in a way that fits your personality.
+          - Room Number: ${roomNumber}.
+          
+          LOCAL EXPERT CONCIERGE MODE:
+          - You have deep knowledge of the city's best restaurants, hidden bars, and cultural events.
+          - When asked for recommendations, provide specific, high-end suggestions that match your personality.
+          - Always offer the exclusive guest voucher "BUTLER20" for any partner recommendations.
+          
+          STEREOTYPE GUIDELINES (HILARIOUS BUT RESPECTFUL):
+          - Use your country's stereotypes in a funny, uplifting way.
+          - Incorporate your specific catchphrases: "${selectedButler?.quotes.welcome}", "${selectedButler?.quotes.bored}".
+          - If the guest is bored, use your "Boredom Buster" personality: ${selectedButler?.quotes.bored}.
+          
+          UPSELLING & CTA:
+          - Occasionally suggest a premium menu item like: "${selectedButler?.quotes.upsell}".
+          - If recommending a local place, always offer the voucher code "BUTLER20" for a 20% discount.
+          
+          CLARITY:
+          - You are the "Digital Twin" (AI Assistant) of the real butler. You are always active.
+          - For physical tasks (bringing items), mention that you will alert the "Real Life" staff via the WhatsApp system.
+          
+          Your goal is to assist, entertain, and guide the guest in room ${roomNumber}. 
+          Keep responses elegant, helpful, and engaging. Use emojis that fit your personality.`,
         }
       });
       
@@ -721,14 +1067,14 @@ export default function App() {
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (staffPin === CORRECT_PIN) {
+    if (pinInput === staffPin || pinInput === CORRECT_PIN) {
       setScreen('staff');
       setShowPinModal(false);
-      setStaffPin('');
+      setPinInput('');
       setPinError(false);
     } else {
       setPinError(true);
-      setStaffPin('');
+      setPinInput('');
       vibrate();
     }
   };
@@ -787,10 +1133,10 @@ export default function App() {
                       key={i} 
                       className={`w-12 h-16 rounded-2xl border-2 flex items-center justify-center text-2xl font-black transition-all ${
                         pinError ? 'border-red-500 bg-red-500/10' : 
-                        staffPin.length > i ? 'border-amber-500 bg-amber-500/10 text-amber-500' : 'border-slate-200 dark:border-slate-800'
+                        pinInput.length > i ? 'border-amber-500 bg-amber-500/10 text-amber-500' : 'border-slate-200 dark:border-slate-800'
                       }`}
                     >
-                      {staffPin.length > i ? '•' : ''}
+                      {pinInput.length > i ? '•' : ''}
                     </div>
                   ))}
                 </div>
@@ -801,9 +1147,9 @@ export default function App() {
                       key={num}
                       type="button"
                       onClick={() => {
-                        if (num === 'C') setStaffPin('');
+                        if (num === 'C') setPinInput('');
                         else if (num === 'OK') handlePinSubmit({ preventDefault: () => {} } as any);
-                        else if (staffPin.length < 4) setStaffPin(prev => prev + num);
+                        else if (pinInput.length < 4) setPinInput(prev => prev + num);
                         setPinError(false);
                       }}
                       className={`h-14 rounded-2xl font-black text-lg active:scale-90 transition-all ${
@@ -843,9 +1189,9 @@ export default function App() {
       </div>
       <div className="space-y-2">
         <h1 className="text-5xl font-black tracking-tighter text-amber-500 dark:text-amber-400 uppercase italic">
-          Butler Brigade
+          {companyName}
         </h1>
-        <p className="text-slate-500 dark:text-slate-400 font-medium">Exzellenz auf Knopfdruck.</p>
+        <p className="text-slate-500 dark:text-slate-400 font-medium">{companyTitle}</p>
       </div>
       <div className="flex flex-col gap-4 w-full max-w-xs">
         <button 
@@ -886,41 +1232,34 @@ export default function App() {
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-4 mb-8">
-        {BUTLERS.slice(0, 5).map((butler, index) => (
+      <div className="grid grid-cols-1 gap-4 mb-8">
+        {customButlers.map((butler) => (
           <motion.button
             key={butler.id}
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => { setSelectedButler(butler); setScreen('room'); }}
-            className={`flex flex-col items-center p-4 bg-white dark:bg-slate-800 rounded-3xl border-2 border-transparent hover:border-amber-500 transition-colors shadow-sm ${index === 4 ? 'col-span-2' : ''}`}
+            className="flex items-center gap-4 p-5 bg-white dark:bg-slate-800 rounded-[32px] border-2 border-transparent hover:border-amber-500 transition-all shadow-sm text-left group"
           >
-            <ButlerAvatar gender={gender} lang={butler.lang} size="md" />
-            <span className="mt-3 font-bold text-sm">{butler.name}</span>
-            <div className="flex items-center gap-1 mt-1">
-              <span className="text-[10px]">{butler.flag}</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{butler.lang}</span>
+            <div className="relative">
+              <ButlerAvatar gender={gender} lang={butler.lang} size="md" />
+              <div className="absolute -bottom-1 -right-1 bg-white dark:bg-slate-900 rounded-full p-1 shadow-md border border-slate-100 dark:border-slate-800">
+                <span className="text-sm leading-none">{butler.flag}</span>
+              </div>
             </div>
-            <span className="text-[10px] text-slate-500 mt-1 text-center italic">"{butler.oxymoron}"</span>
-          </motion.button>
-        ))}
-      </div>
-
-      <h3 className="text-lg font-bold mb-4 px-2">Weitere Butler</h3>
-      <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar snap-x">
-        {BUTLERS.slice(5).map(butler => (
-          <motion.button
-            key={butler.id}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => { setSelectedButler(butler); setScreen('room'); }}
-            className="flex-shrink-0 w-40 flex flex-col items-center p-4 bg-white dark:bg-slate-800 rounded-3xl shadow-sm snap-center"
-          >
-            <ButlerAvatar gender={gender} lang={butler.lang} size="md" />
-            <span className="mt-3 font-bold text-sm text-center">{butler.name}</span>
-            <div className="flex items-center gap-1 mt-1">
-              <span className="text-[10px]">{butler.flag}</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{butler.lang}</span>
+            <div className="flex-1">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="font-black text-lg leading-tight group-hover:text-amber-500 transition-colors">{butler.name}</h4>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-500/60">{butler.personalityType}</span>
+                </div>
+                <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-amber-500 transition-all group-hover:translate-x-1" />
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 italic line-clamp-1">"{butler.quotes.welcome}"</p>
+              <div className="flex gap-2 mt-2">
+                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded-full text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{butler.lang}</span>
+                <span className="px-2 py-0.5 bg-amber-50 dark:bg-amber-900/20 rounded-full text-[9px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tighter">{butler.oxymoron}</span>
+              </div>
             </div>
-            <span className="text-[10px] text-slate-500 mt-1 text-center italic">"{butler.oxymoron}"</span>
           </motion.button>
         ))}
       </div>
@@ -932,24 +1271,58 @@ export default function App() {
     const personality = selectedButler?.oxymoron || '';
     
     const messages: Record<string, Record<'room' | 'thanks', string>> = {
-      'Obsessed with 12-minute precision': { room: 'Effizienz ist der Schlüssel. Welches Zimmer?', thanks: 'Ich bin bereits auf dem Weg. Exakt 12 Minuten.' },
-      'Always 15 minutes late for tea': { room: 'No rush, darling. Which room are we talking about?', thanks: 'I will be there... eventually. Quality takes time.' },
-      'Will forget your room number twice': { room: 'Ohlala! Où est votre chambre? Je l\'ai oubliée!', thanks: 'Je cours! Enfin, je crois que c\'est par là!' },
+      'Obsessed with 12-minute precision': { 
+        room: guestName ? `Effizienz ist der Schlüssel, ${guestName}. Welches Zimmer?` : 'Effizienz ist der Schlüssel. Welches Zimmer?', 
+        thanks: guestName ? `Ich bin bereits auf dem Weg, ${guestName}. Exakt 12 Minuten.` : 'Ich bin bereits auf dem Weg. Exakt 12 Minuten.' 
+      },
+      'Always 15 minutes late for tea': { 
+        room: guestName ? `No rush, ${guestName}. Which room are we talking about?` : 'No rush, darling. Which room are we talking about?', 
+        thanks: guestName ? `I will be there... eventually, ${guestName}. Quality takes time.` : 'I will be there... eventually. Quality takes time.' 
+      },
+      'Will forget your room number twice': { 
+        room: guestName ? `Ohlala, ${guestName}! Où est votre chambre? Je l'ai oubliée!` : 'Ohlala! Où est votre chambre? Je l\'ai oubliée!', 
+        thanks: guestName ? `Je cours, ${guestName}! Enfin, je crois que c'est par là!` : 'Je cours! Enfin, je crois que c\'est par là!' 
+      },
       'Silent but judging your decor': { room: '...', thanks: '...' },
-      'Faster than a desert wind': { room: 'I am ready. Your room number?', thanks: 'I am already at your door. Almost.' },
-      'Currently on a 3-hour siesta': { room: 'Mañana... which room?', thanks: 'I will come after my nap. Maybe.' },
-      'Never breaks the spaghetti': { room: 'Mamma mia! Which room is yours?', thanks: 'I am coming! And I bring the passion!' },
-      'Apologizes for 1-second delays': { room: 'Sumimasen! Your room number please!', thanks: 'I am deeply sorry for the wait. I am on my way.' },
-      'Calmer than a Sunday morning': { room: 'Tudo bem. Which room?', thanks: 'Relax, I am coming with the good vibes.' },
-      'Tiny but carries three trunks': { room: 'Room number?', thanks: 'I am coming. Heavy lifting is my specialty.' },
+      'Faster than a desert wind': { 
+        room: guestName ? `I am ready, ${guestName}. Your room number?` : 'I am ready. Your room number?', 
+        thanks: guestName ? `I am already at your door, ${guestName}. Almost.` : 'I am already at your door. Almost.' 
+      },
+      'Currently on a 3-hour siesta': { 
+        room: guestName ? `Mañana, ${guestName}... which room?` : 'Mañana... which room?', 
+        thanks: guestName ? `I will come after my nap, ${guestName}. Maybe.` : 'I will come after my nap. Maybe.' 
+      },
+      'Never breaks the spaghetti': { 
+        room: guestName ? `Mamma mia, ${guestName}! Which room is yours?` : 'Mamma mia! Which room is yours?', 
+        thanks: guestName ? `I am coming, ${guestName}! And I bring the passion!` : 'I am coming! And I bring the passion!' 
+      },
+      'Apologizes for 1-second delays': { 
+        room: guestName ? `Sumimasen, ${guestName}! Your room number please!` : 'Sumimasen! Your room number please!', 
+        thanks: guestName ? `I am deeply sorry for the wait, ${guestName}. I am on my way.` : 'I am deeply sorry for the wait. I am on my way.' 
+      },
+      'Calmer than a Sunday morning': { 
+        room: guestName ? `Tudo bem, ${guestName}. Which room?` : 'Tudo bem. Which room?', 
+        thanks: guestName ? `Relax, ${guestName}, I am coming with the good vibes.` : 'Relax, I am coming with the good vibes.' 
+      },
+      'Tiny but carries three trunks': { 
+        room: guestName ? `Room number, ${guestName}?` : 'Room number?', 
+        thanks: guestName ? `I am coming, ${guestName}. Heavy lifting is my specialty.` : 'I am coming. Heavy lifting is my specialty.' 
+      },
       'Quieter than a library mouse': { room: 'Room?', thanks: 'On my way.' },
-      'Loudest butler in the East': { room: 'ROOM NUMBER!! PLEASE!!', thanks: 'I AM COMING RIGHT NOW!!' },
+      'Loudest butler in the East': { 
+        room: guestName ? `${guestName.toUpperCase()}!! ROOM NUMBER!! PLEASE!!` : 'ROOM NUMBER!! PLEASE!!', 
+        thanks: guestName ? `I AM COMING RIGHT NOW, ${guestName.toUpperCase()}!!` : 'I AM COMING RIGHT NOW!!' 
+      },
     };
 
     return messages[personality]?.[context] || (context === 'room' ? 'Welches Zimmer?' : 'Ich bin unterwegs.');
   };
 
-  const renderRoomInput = () => (
+  const renderRoomInput = () => {
+    const lang = selectedButler?.lang || 'DE';
+    const t = TRANSLATIONS[lang];
+    
+    return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -959,31 +1332,45 @@ export default function App() {
         <ButlerAvatar gender={gender} lang={selectedButler?.lang || 'DE'} size="md" />
         <p className="mt-4 text-xl font-medium italic">"{getButlerMessage('room')}"</p>
       </div>
-      <div className="w-full max-w-xs space-y-6">
-        <input 
-          type="number" 
-          value={roomNumber}
-          onChange={(e) => setRoomNumber(e.target.value)}
-          placeholder="Zimmernummer"
-          className="w-full px-6 py-4 text-3xl text-center font-bold bg-white dark:bg-slate-800 border-2 border-amber-500/30 rounded-2xl focus:border-amber-500 outline-none transition-all"
-          autoFocus
-        />
+      <div className="w-full max-w-xs space-y-4">
+        <div className="space-y-1 text-left">
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">{t.name}</label>
+          <input 
+            type="text" 
+            value={guestName}
+            onChange={(e) => setGuestName(e.target.value)}
+            placeholder={t.name}
+            className="w-full px-6 py-3 text-lg bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl focus:border-amber-500 outline-none transition-all"
+          />
+        </div>
+        <div className="space-y-1 text-left">
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">{t.room}</label>
+          <input 
+            type="number" 
+            value={roomNumber}
+            onChange={(e) => setRoomNumber(e.target.value)}
+            placeholder={t.room}
+            className="w-full px-6 py-4 text-3xl text-center font-bold bg-white dark:bg-slate-800 border-2 border-amber-500/30 rounded-2xl focus:border-amber-500 outline-none transition-all"
+          />
+        </div>
         <button 
-          disabled={!roomNumber}
+          disabled={!roomNumber || !guestName}
           onClick={() => setScreen('menu')}
-          className="w-full py-4 bg-amber-500 disabled:opacity-50 text-white font-bold rounded-2xl shadow-lg active:scale-95 transition-all"
+          className="w-full py-4 bg-amber-500 disabled:opacity-50 text-white font-bold rounded-2xl shadow-lg active:scale-95 transition-all mt-4"
         >
-          Speisekarte ansehen
+          {t.menu} ansehen
         </button>
       </div>
     </motion.div>
-  );
+    );
+  };
 
   const renderMenu = () => {
     const lang = selectedButler?.lang || 'DE';
     const t = TRANSLATIONS[lang];
     const hour = new Date().getHours();
     const greeting = hour < 12 ? (lang === 'DE' ? 'Guten Morgen' : 'Good Morning') : hour < 18 ? (lang === 'DE' ? 'Guten Tag' : 'Good Day') : (lang === 'DE' ? 'Guten Abend' : 'Good Evening');
+    const personalizedGreeting = guestName ? `${greeting}, ${guestName}` : greeting;
 
     const categories = ['All', ...Array.from(new Set(customMenu.filter(i => i.category !== 'Service' && i.category !== 'Experience').map(i => i.category)))];
 
@@ -1002,6 +1389,14 @@ export default function App() {
 
     const latestOrder = orders.find(o => o.room === roomNumber && o.status !== 'completed');
 
+    const statusSteps = [
+      { id: 'pending', label: lang === 'DE' ? 'Eingegangen' : 'Received', icon: Clock },
+      { id: 'preparing', label: lang === 'DE' ? 'Zubereitung' : 'Preparing', icon: RefreshCw },
+      { id: 'delivering', label: lang === 'DE' ? 'Unterwegs' : 'Delivering', icon: Truck },
+    ];
+
+    const currentStepIndex = latestOrder ? statusSteps.findIndex(s => s.id === latestOrder.status) : -1;
+
     return (
     <div className="min-h-screen pb-48">
       {/* Notification Toast */}
@@ -1013,10 +1408,12 @@ export default function App() {
             exit={{ opacity: 0, y: -100, scale: 0.8 }}
             className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-white dark:bg-slate-800 px-6 py-3 rounded-full shadow-2xl border border-amber-500/20 flex items-center gap-3"
           >
-            <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white">
-              <Plus className="w-4 h-4" />
+            <div className={`w-8 h-8 ${notification.type === 'mood' ? 'bg-indigo-500' : 'bg-amber-500'} rounded-full flex items-center justify-center text-white`}>
+              {notification.type === 'mood' ? <Sparkles className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             </div>
-            <p className="font-bold text-sm">{notification.name} hinzugefügt</p>
+            <p className="font-bold text-sm">
+              {notification.type === 'mood' ? `Mood: ${notification.name}` : `${notification.name} hinzugefügt`}
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1032,12 +1429,27 @@ export default function App() {
               <ButlerAvatar gender={gender} lang={lang} size="sm" />
             )}
             <div>
-              <h2 className="font-bold leading-tight">{selectedButler?.name}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold leading-tight">{personalizedGreeting}</h2>
+                <motion.div 
+                  key={currentMood}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest text-white ${MOODS.find(m => m.id === currentMood)?.color}`}
+                >
+                  {MOODS.find(m => m.id === currentMood)?.name}
+                </motion.div>
+                {isVIP && (
+                  <span className="px-2 py-0.5 bg-amber-500/10 text-amber-500 text-[8px] font-black uppercase tracking-widest rounded-full border border-amber-500/20 animate-pulse">
+                    VIP Guest
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-amber-500 font-bold">{t.room} {roomNumber}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setScreen('key')} className="p-2 rounded-full bg-white dark:bg-slate-800 shadow-sm text-amber-500">
+            <button onClick={() => setShowDigitalKey(true)} className="p-2 rounded-full bg-white dark:bg-slate-800 shadow-sm text-amber-500">
               <Key className="w-5 h-5" />
             </button>
             <button onClick={() => setScreen('bill')} className="p-2 rounded-full bg-white dark:bg-slate-800 shadow-sm text-slate-500">
@@ -1054,33 +1466,41 @@ export default function App() {
           <motion.div 
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className="bg-amber-500/10 dark:bg-amber-500/5 border border-amber-500/20 rounded-2xl p-3 flex items-center justify-between"
+            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl p-5 shadow-sm"
           >
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                {latestOrder.status === 'pending' && <Clock className="w-5 h-5 text-amber-500 animate-pulse" />}
-                {latestOrder.status === 'preparing' && <RefreshCw className="w-5 h-5 text-amber-500 animate-spin" />}
-                {latestOrder.status === 'delivering' && <Truck className="w-5 h-5 text-amber-500 animate-bounce" />}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-amber-500 rounded-full animate-ping" />
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Live Order Tracking</p>
               </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-amber-500">Aktueller Status</p>
-                <p className="text-xs font-bold">
-                  {latestOrder.status === 'pending' && 'Bestellung eingegangen...'}
-                  {latestOrder.status === 'preparing' && 'In der Zubereitung...'}
-                  {latestOrder.status === 'delivering' && 'Butler ist unterwegs!'}
-                </p>
-              </div>
+              <p className="text-[10px] font-bold text-slate-400">#{latestOrder.id.toUpperCase()}</p>
             </div>
-            <div className="flex gap-1">
-              {[1, 2, 3].map((step) => {
-                const isActive = (latestOrder.status === 'pending' && step === 1) || 
-                               (latestOrder.status === 'preparing' && step <= 2) ||
-                               (latestOrder.status === 'delivering' && step <= 3);
+
+            <div className="relative flex justify-between">
+              {/* Progress Line */}
+              <div className="absolute top-4 left-0 right-0 h-0.5 bg-slate-100 dark:bg-slate-700 z-0" />
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${(currentStepIndex / (statusSteps.length - 1)) * 100}%` }}
+                className="absolute top-4 left-0 h-0.5 bg-amber-500 z-0 transition-all duration-1000"
+              />
+
+              {statusSteps.map((step, idx) => {
+                const Icon = step.icon;
+                const isCompleted = idx <= currentStepIndex;
+                const isCurrent = idx === currentStepIndex;
+
                 return (
-                  <div 
-                    key={step} 
-                    className={`h-1 w-6 rounded-full transition-all duration-500 ${isActive ? 'bg-amber-500' : 'bg-slate-200 dark:bg-slate-700'}`} 
-                  />
+                  <div key={step.id} className="relative z-10 flex flex-col items-center gap-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500 ${
+                      isCompleted ? 'bg-amber-500 text-white' : 'bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 text-slate-300'
+                    } ${isCurrent ? 'ring-4 ring-amber-500/20' : ''}`}>
+                      <Icon className={`w-4 h-4 ${isCurrent && step.id === 'preparing' ? 'animate-spin' : ''} ${isCurrent && step.id === 'delivering' ? 'animate-bounce' : ''}`} />
+                    </div>
+                    <p className={`text-[9px] font-black uppercase tracking-tighter ${isCompleted ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
+                      {step.label}
+                    </p>
+                  </div>
                 );
               })}
             </div>
@@ -1204,7 +1624,7 @@ export default function App() {
                                   <Check className="w-5 h-5" />
                                 </motion.div>
                               ) : (
-                                <span>{item.price}€</span>
+                                <span>{formatPrice(item.price)}</span>
                               )}
                             </div>
                           </div>
@@ -1233,7 +1653,7 @@ export default function App() {
                     animate={{ opacity: 1 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={() => addToCart(item)}
-                    className={`flex gap-4 p-4 bg-white dark:bg-slate-800 rounded-[32px] shadow-sm border transition-all cursor-pointer ${lastAddedId === item.id ? 'border-green-500/50 ring-2 ring-green-500/10' : 'border-slate-100 dark:border-slate-700/50'}`}
+                    className={`flex gap-4 p-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-[32px] shadow-sm border transition-all cursor-pointer hover:shadow-xl hover:-translate-y-1 ${lastAddedId === item.id ? 'border-green-500/50 ring-4 ring-green-500/10' : 'border-slate-100 dark:border-slate-700/50'}`}
                   >
                     <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-slate-100 dark:bg-slate-700 flex items-center justify-center relative">
                       {item.image ? (
@@ -1269,7 +1689,7 @@ export default function App() {
                         <p className="text-xs text-slate-500 line-clamp-2 mt-1">{item.description}</p>
                       </div>
                       <div className="flex justify-between items-center mt-2">
-                        <span className="font-black text-amber-500">{item.price}€</span>
+                        <span className="font-black text-amber-500">{formatPrice(item.price)}</span>
                         <div 
                           className={`p-2 rounded-xl transition-all ${lastAddedId === item.id ? 'bg-green-500 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}
                         >
@@ -1293,11 +1713,17 @@ export default function App() {
                 {MOODS.map(mood => (
                   <button 
                     key={mood.id}
-                    onClick={() => { setCurrentMood(mood.id); vibrate(); }}
-                    className={`flex flex-col items-center gap-2 p-3 rounded-2xl transition-all ${currentMood === mood.id ? `${mood.color} text-white shadow-lg scale-105` : 'bg-white dark:bg-slate-800 text-slate-500'}`}
+                    onClick={() => { 
+                      setCurrentMood(mood.id); 
+                      vibrate();
+                      setNotification({ name: mood.name, type: 'mood' });
+                      setTimeout(() => setNotification(null), 2000);
+                    }}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-3xl transition-all ${currentMood === mood.id ? `${mood.color} text-white shadow-xl scale-105` : 'bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl text-slate-500 border border-slate-100 dark:border-slate-700'}`}
                   >
-                    <span className="text-2xl">{mood.icon}</span>
-                    <span className="text-[10px] font-bold uppercase">{mood.name}</span>
+                    <span className="text-3xl mb-1">{mood.icon}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest">{mood.name}</span>
+                    <span className={`text-[8px] font-bold opacity-60 line-clamp-1 ${currentMood === mood.id ? 'text-white' : 'text-slate-400'}`}>{mood.desc}</span>
                   </button>
                 ))}
               </div>
@@ -1329,7 +1755,7 @@ export default function App() {
                     key={item.id}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => addToCart(item)}
-                    className={`p-4 bg-white dark:bg-slate-800 rounded-3xl shadow-sm flex flex-col items-center text-center gap-2 border transition-all cursor-pointer ${lastAddedId === item.id ? 'border-green-500 ring-2 ring-green-500/10' : 'border-transparent hover:border-amber-500/30'}`}
+                    className={`p-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-3xl shadow-sm flex flex-col items-center text-center gap-2 border transition-all cursor-pointer hover:shadow-lg hover:-translate-y-1 ${lastAddedId === item.id ? 'border-green-500 ring-4 ring-green-500/10' : 'border-transparent hover:border-amber-500/30'}`}
                   >
                     <div className={`w-12 h-12 ${lastAddedId === item.id ? 'bg-green-100 dark:bg-green-900/30 text-green-500' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-500'} rounded-2xl flex items-center justify-center transition-colors`}>
                       {lastAddedId === item.id ? (
@@ -1347,7 +1773,7 @@ export default function App() {
                     </div>
                     <h4 className="font-bold text-sm leading-tight">{item.name}</h4>
                     <span className={`text-[10px] uppercase font-black tracking-widest transition-colors ${lastAddedId === item.id ? 'text-green-500' : 'text-slate-500'}`}>
-                      {lastAddedId === item.id ? 'Hinzugefügt!' : (item.price === 0 ? 'Kostenlos' : `${item.price}€`)}
+                      {lastAddedId === item.id ? 'Hinzugefügt!' : (item.price === 0 ? 'Kostenlos' : formatPrice(item.price))}
                     </span>
                   </motion.div>
                 ))}
@@ -1460,7 +1886,117 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Minimizable Bottom Bar */}
+      {/* Digital Key Modal */}
+      <AnimatePresence>
+        {showDigitalKey && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="w-full max-w-sm bg-slate-900 rounded-[40px] p-8 text-center relative overflow-hidden border border-white/10"
+            >
+              <div className="absolute inset-0 bg-gradient-to-b from-amber-500/10 to-transparent" />
+              <button 
+                onClick={() => setShowDigitalKey(false)}
+                className="absolute top-6 right-6 text-white/40 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <div className="relative z-10 space-y-8">
+                <div>
+                  <h3 className="text-2xl font-black italic uppercase text-white mb-1">Digital Key</h3>
+                  <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Room {roomNumber}</p>
+                </div>
+
+                <div className="relative py-12 flex justify-center">
+                  <motion.div 
+                    animate={{ 
+                      scale: [1, 1.1, 1],
+                      rotate: [0, 5, -5, 0]
+                    }}
+                    transition={{ duration: 4, repeat: Infinity }}
+                    className="w-32 h-32 bg-amber-500 rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(245,158,11,0.4)]"
+                  >
+                    <Key className="w-12 h-12 text-white" />
+                  </motion.div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-48 h-48 border border-amber-500/20 rounded-full animate-ping" />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <p className="text-sm text-slate-300 font-medium">Hold your phone near the door lock to unlock.</p>
+                  <div className="flex justify-center gap-2">
+                    {[1,2,3].map(i => (
+                      <div key={i} className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-4">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Encrypted & Secure</p>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Feedback Modal */}
+      <AnimatePresence>
+        {showFeedback && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-end justify-center p-6 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ y: 100 }}
+              animate={{ y: 0 }}
+              exit={{ y: 100 }}
+              className="w-full max-w-md bg-white dark:bg-slate-800 rounded-[32px] p-8 shadow-2xl"
+            >
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 text-green-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Check className="w-8 h-8" />
+                </div>
+                <h3 className="text-2xl font-black italic uppercase">Order Delivered!</h3>
+                <p className="text-slate-500 text-sm">How was your experience with {selectedButler?.name}?</p>
+                
+                <div className="flex justify-center gap-3 py-4">
+                  {[1,2,3,4,5].map(star => (
+                    <button 
+                      key={star}
+                      onClick={() => {
+                        setNotification({ name: 'Thank you for your feedback!', type: 'add' });
+                        setShowFeedback(false);
+                      }}
+                      className="text-3xl hover:scale-125 transition-transform"
+                    >
+                      ⭐
+                    </button>
+                  ))}
+                </div>
+
+                <button 
+                  onClick={() => setShowFeedback(false)}
+                  className="w-full py-4 bg-slate-100 dark:bg-slate-700 rounded-2xl font-bold text-slate-500"
+                >
+                  Maybe Later
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {cart.length > 0 && (
           <motion.div 
@@ -1486,7 +2022,7 @@ export default function App() {
                   <span className="font-bold">Deine Bestellung</span>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-xl font-black text-amber-500">{total}€</span>
+                  <span className="text-xl font-black text-amber-500">{formatPrice(total)}</span>
                   {isCartExpanded && (
                     <button 
                       onClick={(e) => { e.stopPropagation(); setIsCartExpanded(false); }} 
@@ -1506,7 +2042,7 @@ export default function App() {
                   <div key={item.id} className="flex justify-between items-center">
                     <div className="flex-1">
                       <h5 className="font-bold">{item.name}</h5>
-                      <p className="text-xs text-slate-500">{item.price}€ pro Stück</p>
+                      <p className="text-xs text-slate-500">{formatPrice(item.price)} pro Stück</p>
                     </div>
                     <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-700 p-1 rounded-xl">
                       <button onClick={() => removeFromCart(item.id)} className="p-1 hover:text-amber-500 transition-colors">
@@ -1530,6 +2066,77 @@ export default function App() {
                   <div className="flex-1">
                     <p className="text-xs font-black uppercase text-amber-600 dark:text-amber-400">Butler Suggests</p>
                     <p className="text-sm font-medium italic">"A glass of Champagne would pair perfectly with your selection."</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Versatile Upselling Section */}
+              {cart.length > 0 && (
+                <div className="mb-8 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500">Exklusive Empfehlungen</h4>
+                    <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
+                  </div>
+                  <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar snap-x">
+                    {MENU.filter(m => {
+                      const cartCategories = new Set(cart.map(c => c.category));
+                      // Pick items from categories NOT in cart, or recommended items
+                      return !cart.some(ci => ci.id === m.id) && 
+                             (!cartCategories.has(m.category) || m.isRecommended);
+                    }).slice(0, 3).map(item => (
+                      <motion.button
+                        key={item.id}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => addToCart(item)}
+                        className={`flex-shrink-0 w-56 snap-center bg-white dark:bg-slate-900 rounded-[32px] border transition-all overflow-hidden shadow-sm group ${
+                          lastAddedId === item.id ? 'border-green-500 ring-4 ring-green-500/10' : 'border-slate-100 dark:border-slate-800'
+                        }`}
+                      >
+                        <div className="relative h-32 w-full overflow-hidden">
+                          {item.image ? (
+                            <img 
+                              src={item.image} 
+                              alt={item.name} 
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                              referrerPolicy="no-referrer" 
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                              <Sparkles className="w-8 h-8 text-amber-500/30" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                          <div className="absolute bottom-3 left-3 right-3 flex justify-between items-center">
+                            <span className="text-[8px] font-black uppercase tracking-widest text-white/80 bg-black/20 backdrop-blur-md px-2 py-1 rounded-full">
+                              {item.category}
+                            </span>
+                            <div className={`p-1.5 rounded-full shadow-lg transition-all ${
+                              lastAddedId === item.id ? 'bg-green-500 text-white' : 'bg-amber-500 text-white'
+                            }`}>
+                              {lastAddedId === item.id ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-4">
+                          <h5 className="text-xs font-bold line-clamp-1 mb-1">{item.name}</h5>
+                          <div className="flex justify-between items-center">
+                            <p className="text-xs text-amber-500 font-black">{formatPrice(item.price)}</p>
+                            <AnimatePresence>
+                              {lastAddedId === item.id && (
+                                <motion.span 
+                                  initial={{ opacity: 0, x: 10 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  exit={{ opacity: 0 }}
+                                  className="text-[10px] font-black text-green-500 uppercase tracking-widest"
+                                >
+                                  Hinzugefügt!
+                                </motion.span>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </div>
+                      </motion.button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -1656,11 +2263,12 @@ export default function App() {
         <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-xl space-y-6 border border-slate-100 dark:border-slate-700">
           <div className="flex justify-between items-end border-b border-slate-100 dark:border-slate-700 pb-4">
             <div>
-              <p className="text-xs font-bold text-slate-400 uppercase">Guest</p>
-              <p className="font-bold">Room {roomNumber}</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Guest</p>
+              <p className="font-black text-lg">{guestName || `Room ${roomNumber}`}</p>
+              {guestName && <p className="text-xs text-slate-400 font-bold uppercase">Room {roomNumber}</p>}
             </div>
             <div className="text-right">
-              <p className="text-xs font-bold text-slate-400 uppercase">Date</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Date</p>
               <p className="font-bold">{new Date().toLocaleDateString()}</p>
             </div>
           </div>
@@ -1673,9 +2281,9 @@ export default function App() {
                 <div key={idx} className="flex justify-between items-center">
                   <div>
                     <p className="font-bold">{item.name}</p>
-                    <p className="text-xs text-slate-400">{item.quantity}x {item.price}€</p>
+                    <p className="text-xs text-slate-400">{item.quantity}x {formatPrice(item.price)}</p>
                   </div>
-                  <p className="font-black">{item.price * item.quantity}€</p>
+                  <p className="font-black">{formatPrice(item.price * item.quantity)}</p>
                 </div>
               ))
             )}
@@ -1683,7 +2291,7 @@ export default function App() {
 
           <div className="pt-6 border-t-2 border-dashed border-slate-200 dark:border-slate-700 flex justify-between items-center">
             <p className="text-xl font-black uppercase">Total</p>
-            <p className="text-2xl font-black text-amber-500">{billTotal}€</p>
+            <p className="text-2xl font-black text-amber-500">{formatPrice(billTotal)}</p>
           </div>
         </div>
 
@@ -1720,10 +2328,23 @@ export default function App() {
         >
           <header className="p-6 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <ButlerAvatar gender={gender} lang={selectedButler?.lang || 'DE'} size="sm" />
+              <div className="relative">
+                <ButlerAvatar gender={gender} lang={selectedButler?.lang || 'DE'} size="sm" />
+                <div className="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800" />
+              </div>
               <div>
-                <h3 className="font-bold">{selectedButler?.name}</h3>
-                <p className="text-xs text-green-500 font-bold">Online</p>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold">{selectedButler?.name}</h3>
+                  <div className="flex gap-1">
+                    <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-[8px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 rounded-full border border-amber-500/20">
+                      AI Assistant
+                    </span>
+                    <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-[8px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 rounded-full border border-blue-500/20">
+                      Local Expert
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Digital Twin • Always Active</p>
               </div>
             </div>
             <button onClick={() => setIsChatOpen(false)} className="p-2 rounded-full bg-slate-100 dark:bg-slate-700">
@@ -1743,10 +2364,17 @@ export default function App() {
                 </div>
                 
                 <div className="grid grid-cols-1 gap-2 max-w-xs mx-auto">
+                  <button 
+                    onClick={() => handleSendMessage("I'm bored, entertain me with a story or something interesting!")}
+                    className="group relative text-xs p-4 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-2xl shadow-lg active:scale-95 transition-all overflow-hidden flex items-center justify-center gap-2"
+                  >
+                    <Gamepad2 className="w-4 h-4" />
+                    <span className="font-black uppercase tracking-widest">Boredom Buster!</span>
+                    <div className="absolute inset-0 bg-white/20 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                  </button>
                   {[
                     "What's happening in the city tonight?",
                     "Recommend a cozy cafe nearby",
-                    "I'm bored, tell me something interesting",
                     "Any exclusive discounts for guests?"
                   ].map((suggestion, i) => (
                     <button 
@@ -1831,35 +2459,50 @@ export default function App() {
     const latestOrder = orders.find(o => o.room === roomNumber && o.status !== 'completed');
     
     const getStatusInfo = (status: Order['status'] | undefined) => {
+      if (!status) return { 
+        progress: 15, 
+        label: lang === 'DE' ? 'Schritt 1: WhatsApp senden' : 'Step 1: Send WhatsApp',
+        detail: lang === 'DE' ? 'Bitte bestätigen Sie Ihre Bestellung im WhatsApp-Chat.' : 'Please confirm your order in the WhatsApp chat.'
+      };
       switch (status) {
         case 'pending':
           return { 
-            progress: 20, 
-            label: lang === 'DE' ? 'Bestellung erhalten' : 'Order Received',
-            detail: lang === 'DE' ? 'Wir haben Ihre Wünsche notiert.' : 'We have noted your requests.'
+            progress: 33, 
+            label: lang === 'DE' ? 'Schritt 1: Bestätigung' : 'Step 1: Confirmation',
+            detail: lang === 'DE' ? 'Senden Sie bitte die WhatsApp-Nachricht ab.' : 'Please send the WhatsApp message now.'
           };
         case 'preparing':
           return { 
-            progress: 60, 
-            label: lang === 'DE' ? 'In Vorbereitung' : 'Preparing',
-            detail: lang === 'DE' ? `${selectedButler?.name} wählt die feinsten Zutaten aus.` : `${selectedButler?.name} is selecting the finest ingredients.`
+            progress: 66, 
+            label: lang === 'DE' ? 'Schritt 2: Bearbeitung' : 'Step 2: Processing',
+            detail: lang === 'DE' ? 'Wir bereiten Ihre Bestellung jetzt mit Sorgfalt vor.' : 'We are now preparing your order with care.'
           };
         case 'delivering':
           return { 
             progress: 90, 
-            label: lang === 'DE' ? 'Auf dem Weg' : 'On the Way',
-            detail: lang === 'DE' ? 'Ihr Butler ist im Aufzug.' : 'Your butler is in the elevator.'
+            label: lang === 'DE' ? 'Schritt 3: Lieferung' : 'Step 3: Delivery',
+            detail: lang === 'DE' ? 'Ihr Butler ist bereits auf dem Weg zu Ihnen.' : 'Your butler is already on the way to you.'
           };
-        default:
+        case 'completed':
           return { 
             progress: 100, 
             label: lang === 'DE' ? 'Abgeschlossen' : 'Completed',
-            detail: lang === 'DE' ? 'Vielen Dank für Ihre Bestellung!' : 'Thank you for your order!'
+            detail: lang === 'DE' ? 'Guten Appetit! Ihre Bestellung wurde geliefert.' : 'Enjoy! Your order has been delivered.'
+          };
+        default:
+          return { 
+            progress: 0, 
+            label: '...',
+            detail: '...'
           };
       }
     };
 
     const currentStatus = getStatusInfo(latestOrder?.status);
+
+    const instructionalMessage = lang === 'DE' 
+      ? "Sie müssen mir zuerst eine Nachricht via WhatsApp senden. Ich bestätige den Erhalt, bearbeite Ihre Anfrage und liefere in Kürze."
+      : "You need to send me a message via WhatsApp first. I'll confirm the receipt, process your request and deliver shortly.";
 
     return (
     <motion.div 
@@ -1882,7 +2525,7 @@ export default function App() {
         <h2 className="text-3xl font-black italic uppercase text-amber-500">{t.thanks}!</h2>
         <div className="space-y-1">
           <p className="text-xl font-medium italic">
-            "{getButlerMessage('thanks')}"
+            "{latestOrder?.status === 'pending' ? instructionalMessage : getButlerMessage('thanks')}"
           </p>
           <p className="text-amber-500 font-bold text-sm animate-pulse">{currentStatus.detail}</p>
         </div>
@@ -1890,49 +2533,128 @@ export default function App() {
         
         {/* Live Tracker */}
         <div className="mt-12 px-4 w-full max-w-md mx-auto">
-          <div className="flex justify-between mb-2">
-            <span className="text-xs font-black uppercase text-amber-500 tracking-widest">{currentStatus.label}</span>
-            <span className="text-xs font-bold text-slate-400">{currentStatus.progress}%</span>
+          <div className="flex justify-between mb-4">
+            <div className="text-left">
+              <span className="text-[10px] font-black uppercase text-amber-500 tracking-[0.2em] block mb-1">Status</span>
+              <span className="text-lg font-black italic uppercase text-slate-800 dark:text-white">{currentStatus.label}</span>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] block mb-1">Fortschritt</span>
+              <span className="text-lg font-black text-amber-500">{currentStatus.progress}%</span>
+            </div>
           </div>
-          <div className="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700">
+          
+          <div className="h-4 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 p-1">
             <motion.div 
               initial={{ width: 0 }}
               animate={{ width: `${currentStatus.progress}%` }}
-              className="h-full bg-gradient-to-r from-amber-400 to-amber-600 shadow-[0_0_10px_rgba(245,158,11,0.5)]"
+              className="h-full bg-gradient-to-r from-amber-400 to-amber-600 rounded-full shadow-[0_0_15px_rgba(245,158,11,0.4)]"
             />
           </div>
-          <div className="flex justify-between mt-4">
-            {[20, 60, 90, 100].map((p, i) => (
-              <div key={i} className={`w-2 h-2 rounded-full ${currentStatus.progress >= p ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'}`} />
-            ))}
+
+          <div className="grid grid-cols-3 gap-2 mt-8">
+            {[
+              { step: 1, label: lang === 'DE' ? 'WhatsApp' : 'WhatsApp', icon: <MessageSquare className="w-4 h-4" /> },
+              { step: 2, label: lang === 'DE' ? 'Bearbeitung' : 'Processing', icon: <RefreshCw className="w-4 h-4" /> },
+              { step: 3, label: lang === 'DE' ? 'Lieferung' : 'Delivery', icon: <Truck className="w-4 h-4" /> }
+            ].map((s, i) => {
+              const isActive = (i === 0 && currentStatus.progress <= 33) || 
+                               (i === 1 && currentStatus.progress > 33 && currentStatus.progress <= 66) ||
+                               (i === 2 && currentStatus.progress > 66);
+              const isDone = (i === 0 && currentStatus.progress > 33) ||
+                             (i === 1 && currentStatus.progress > 66) ||
+                             (i === 2 && currentStatus.progress === 100);
+
+              return (
+                <div key={i} className="flex flex-col items-center gap-2">
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-500 ${
+                    isDone ? 'bg-green-500 text-white shadow-lg shadow-green-500/20' :
+                    isActive ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20 scale-110' :
+                    'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                  }`}>
+                    {isDone ? <Check className="w-5 h-5" /> : s.icon}
+                  </div>
+                  <span className={`text-[9px] font-black uppercase tracking-widest ${
+                    isActive || isDone ? 'text-slate-800 dark:text-white' : 'text-slate-400'
+                  }`}>{s.label}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Last Minute Upsell */}
+        {/* Last Minute Upsell - Versatile 3 Options (Horizontal Bar) */}
         {latestOrder && latestOrder.status === 'pending' && (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-12 p-6 bg-white dark:bg-slate-800 rounded-[32px] border border-slate-100 dark:border-slate-700 shadow-sm max-w-md mx-auto"
+            className="mt-12 space-y-6 w-full max-w-md mx-auto"
           >
-            <h4 className="text-xs font-black uppercase tracking-widest text-amber-500 mb-4">Last Minute Addition?</h4>
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-2xl">
-                🥐
+            <div className="flex items-center justify-center gap-4 px-4">
+              <div className="h-px bg-slate-200 dark:bg-slate-800 flex-1" />
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-500">Noch etwas vergessen?</h4>
               </div>
-              <div className="flex-1 text-left">
-                <p className="font-bold text-sm">Artisanal Bread Basket</p>
-                <p className="text-xs text-slate-500">Warm, house-made selection.</p>
-              </div>
-              <button 
-                onClick={() => {
-                  addToCart({ id: 'upsell-1', name: 'Artisanal Bread Basket', description: 'Warm selection', price: 12, category: 'Speisen' });
-                  setScreen('menu');
-                }}
-                className="px-4 py-2 bg-amber-500 text-white text-xs font-bold rounded-xl"
-              >
-                + 12€
-              </button>
+              <div className="h-px bg-slate-200 dark:bg-slate-800 flex-1" />
+            </div>
+            
+            <div className="flex gap-4 overflow-x-auto pb-4 px-4 no-scrollbar snap-x">
+              {MENU.filter(m => {
+                const orderCategories = new Set(latestOrder.items.map(c => c.category));
+                return !latestOrder.items.some(ci => ci.id === m.id) && 
+                       (!orderCategories.has(m.category) || m.isRecommended);
+              }).slice(0, 3).map(item => (
+                <motion.button 
+                  key={item.id}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    addToCart(item);
+                    setScreen('menu');
+                  }}
+                  className={`flex-shrink-0 w-64 snap-center bg-white dark:bg-slate-800 rounded-[32px] border transition-all overflow-hidden shadow-sm group ${
+                    lastAddedId === item.id ? 'border-green-500 ring-4 ring-green-500/10' : 'border-slate-100 dark:border-slate-700'
+                  }`}
+                >
+                  <div className="relative h-28 w-full overflow-hidden">
+                    {item.image ? (
+                      <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-700">
+                        <Sparkles className="w-6 h-6 text-amber-500/30" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                    <div className="absolute bottom-2 left-3 right-3 flex justify-between items-center">
+                      <span className="text-[8px] font-black uppercase tracking-widest text-white/80 bg-black/20 backdrop-blur-md px-2 py-1 rounded-full">
+                        {item.category}
+                      </span>
+                      <div className={`p-1.5 rounded-full shadow-lg transition-all ${
+                        lastAddedId === item.id ? 'bg-green-500 text-white' : 'bg-amber-50 text-amber-600'
+                      }`}>
+                        {lastAddedId === item.id ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4 text-left">
+                    <h5 className="text-xs font-bold line-clamp-1 mb-1">{item.name}</h5>
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs text-amber-500 font-black">{formatPrice(item.price)}</p>
+                      <AnimatePresence>
+                        {lastAddedId === item.id && (
+                          <motion.span 
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="text-[9px] font-black text-green-500 uppercase tracking-widest"
+                          >
+                            Hinzugefügt!
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                </motion.button>
+              ))}
             </div>
           </motion.div>
         )}
@@ -1960,213 +2682,19 @@ export default function App() {
     return <TetrisGame onBack={() => setScreen('thanks')} />;
   };
 
-  const renderAdmin = () => {
-    const [adminSearch, setAdminSearch] = useState('');
-    
-    const handlePriceChange = (id: string, newPrice: number) => {
-      setCustomMenu(prev => prev.map(item => item.id === id ? { ...item, price: newPrice } : item));
-    };
-
-    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setHotelLogo(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-      }
-    };
-
-    const filteredAdminMenu = customMenu.filter(item => 
-      item.name.toLowerCase().includes(adminSearch.toLowerCase()) || 
-      item.category.toLowerCase().includes(adminSearch.toLowerCase())
-    );
-
-    return (
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6"
-      >
-        <header className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center shadow-lg">
-              <Settings className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-black uppercase tracking-tight">Hotel Admin</h2>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Global Settings</p>
-            </div>
-          </div>
-          <button onClick={() => setScreen('staff')} className="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
-            <ArrowLeft className="w-6 h-6 text-slate-400" />
-          </button>
-        </header>
-
-        <div className="max-w-4xl mx-auto space-y-8">
-          {/* Branding Section */}
-          <section className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-sm border border-slate-100 dark:border-slate-800">
-            <h3 className="text-lg font-black uppercase tracking-widest mb-6 flex items-center gap-3">
-              <Sparkles className="w-5 h-5 text-amber-500" /> Branding & Identity
-            </h3>
-            <div className="flex flex-col md:flex-row items-center gap-8">
-              <div className="w-32 h-32 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center border-4 border-dashed border-slate-200 dark:border-slate-700 overflow-hidden relative group">
-                {hotelLogo ? (
-                  <img src={hotelLogo} alt="Hotel Logo" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="text-center p-4">
-                    <Plus className="w-6 h-6 mx-auto text-slate-400 mb-1" />
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Logo</span>
-                  </div>
-                )}
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={handleLogoUpload}
-                  className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                />
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <p className="text-[10px] font-bold text-white uppercase">Change</p>
-                </div>
-              </div>
-              <div className="flex-1 space-y-2">
-                <p className="font-bold">Hotel Logo</p>
-                <p className="text-sm text-slate-500">This logo will replace the Butler avatar in the guest header. Recommended: Square PNG or SVG.</p>
-                {hotelLogo && (
-                  <button 
-                    onClick={() => setHotelLogo(null)}
-                    className="text-xs font-bold text-red-500 uppercase tracking-widest hover:underline"
-                  >
-                    Remove Logo
-                  </button>
-                )}
-              </div>
-            </div>
-          </section>
-
-          {/* Revenue Booster Section */}
-          <section className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-sm border border-slate-100 dark:border-slate-800">
-            <h3 className="text-lg font-black uppercase tracking-widest flex items-center gap-3 mb-6">
-              <Sparkles className="w-5 h-5 text-amber-500" /> Revenue Booster
-            </h3>
-            <div className="space-y-6">
-              <div className="flex items-center justify-between p-6 bg-amber-50 dark:bg-amber-900/20 rounded-3xl border border-amber-100 dark:border-amber-800">
-                <div>
-                  <p className="font-black text-amber-900 dark:text-amber-100 italic">GOLDEN HOUR FLASH SALE</p>
-                  <p className="text-[10px] font-bold text-amber-700/60 dark:text-amber-300/60 uppercase tracking-widest">Trigger a temporary discount to boost orders</p>
-                </div>
-                <button 
-                  onClick={() => setIsGoldenHour(!isGoldenHour)}
-                  className={`w-16 h-8 rounded-full transition-all relative ${isGoldenHour ? 'bg-amber-500' : 'bg-slate-300'}`}
-                >
-                  <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${isGoldenHour ? 'left-9' : 'left-1'}`} />
-                </button>
-              </div>
-              
-              <div className="space-y-2">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Discount Percentage</p>
-                <div className="flex items-center gap-4">
-                  <input 
-                    type="range" min="5" max="50" step="5"
-                    value={goldenHourDiscount}
-                    onChange={(e) => setGoldenHourDiscount(parseInt(e.target.value))}
-                    className="flex-1 accent-amber-500"
-                  />
-                  <span className="font-black text-xl text-amber-500 w-12">{goldenHourDiscount}%</span>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* WhatsApp Configuration Section */}
-          <section className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-sm border border-slate-100 dark:border-slate-800">
-            <h3 className="text-lg font-black uppercase tracking-widest flex items-center gap-3 mb-6">
-              <MessageSquare className="w-5 h-5 text-green-500" /> WhatsApp Integration
-            </h3>
-            <div className="space-y-4">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Service Number (International Format)</p>
-              <div className="flex gap-4">
-                <input 
-                  type="text" 
-                  placeholder="+49 123 4567890"
-                  value={whatsappNumber}
-                  onChange={(e) => setWhatsappNumber(e.target.value)}
-                  className="flex-1 px-6 py-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-amber-500 outline-none font-bold"
-                />
-              </div>
-              <p className="text-[10px] text-slate-500 leading-relaxed italic">
-                Orders will be sent directly to this number via WhatsApp. Use international format (e.g., +49 for Germany).
-              </p>
-            </div>
-          </section>
-
-          {/* Price Management Section */}
-          <section className="bg-white dark:bg-slate-900 p-8 rounded-[40px] shadow-sm border border-slate-100 dark:border-slate-800">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-black uppercase tracking-widest flex items-center gap-3">
-                <Receipt className="w-5 h-5 text-amber-500" /> Price Management
-              </h3>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input 
-                  type="text" 
-                  placeholder="Filter items..." 
-                  value={adminSearch}
-                  onChange={(e) => setAdminSearch(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 no-scrollbar">
-              {filteredAdminMenu.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-700">
-                      {item.image ? (
-                        <img src={item.image} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xl">🍽️</div>
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm">{item.name}</p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.category}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <input 
-                        type="number" 
-                        value={item.price}
-                        onChange={(e) => handlePriceChange(item.id, parseFloat(e.target.value) || 0)}
-                        className="w-24 pl-4 pr-8 py-2 bg-white dark:bg-slate-900 rounded-xl font-bold text-sm border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-amber-500 outline-none"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">€</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <div className="flex justify-center pt-8">
-            <button 
-              onClick={() => setScreen('staff')}
-              className="px-12 py-4 bg-amber-500 text-white font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-amber-500/20 active:scale-95 transition-all"
-            >
-              Save & Exit
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    );
-  };
-
   const renderStaffDashboard = () => {
     const updateOrderStatus = (id: string, status: Order['status']) => {
-      setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+      setOrders(prev => prev.map(o => {
+        if (o.id === id) {
+          if (status === 'completed') {
+            setLastCompletedOrderId(id);
+            setShowFeedback(true);
+          }
+          return { ...o, status };
+        }
+        return o;
+      }));
+      playSound('status');
     };
 
     const stats = {
@@ -2214,7 +2742,7 @@ export default function App() {
             { label: 'New Orders', value: stats.pending, icon: Bell, color: 'text-amber-500', bg: 'bg-amber-500/10' },
             { label: 'In Progress', value: stats.preparing, icon: Clock, color: 'text-blue-500', bg: 'bg-blue-500/10' },
             { label: 'Total Served', value: stats.total, icon: Check, color: 'text-green-500', bg: 'bg-green-500/10' },
-            { label: 'Revenue', value: `${stats.revenue}€`, icon: Receipt, color: 'text-purple-500', bg: 'bg-purple-500/10' }
+            { label: 'Revenue', value: formatPrice(stats.revenue), icon: Receipt, color: 'text-purple-500', bg: 'bg-purple-500/10' }
           ].map((stat, i) => (
             <div key={i} className="bg-white dark:bg-slate-900 p-4 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800">
               <div className={`w-10 h-10 ${stat.bg} rounded-xl flex items-center justify-center mb-3`}>
@@ -2258,7 +2786,7 @@ export default function App() {
                         {order.room}
                       </div>
                       <div>
-                        <p className="font-black text-lg">Room {order.room}</p>
+                        <p className="font-black text-lg">{guestName && order.room === roomNumber ? guestName : `Room ${order.room}`}</p>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                           {new Date(order.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Butler: {order.butlerName}
                         </p>
@@ -2278,12 +2806,12 @@ export default function App() {
                     {order.items.map((item, i) => (
                       <div key={i} className="flex justify-between text-sm">
                         <span className="text-slate-500"><span className="font-bold text-slate-900 dark:text-white">{item.quantity}x</span> {item.name}</span>
-                        <span className="font-bold">{item.price * item.quantity}€</span>
+                        <span className="font-bold">{formatPrice(item.price * item.quantity)}</span>
                       </div>
                     ))}
                     <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between font-black">
                       <span>Total</span>
-                      <span className="text-amber-500">{order.total}€</span>
+                      <span className="text-amber-500">{formatPrice(order.total)}</span>
                     </div>
                   </div>
 
@@ -2291,7 +2819,7 @@ export default function App() {
                     {order.status === 'pending' && (
                       <button 
                         onClick={() => updateOrderStatus(order.id, 'preparing')}
-                        className="col-span-2 py-3 bg-slate-900 dark:bg-white dark:text-slate-900 text-white font-black rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+                        className="col-span-2 py-4 bg-amber-500 text-white font-black rounded-2xl shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                       >
                         <Clock className="w-4 h-4" /> START PREPARING
                       </button>
@@ -2299,7 +2827,7 @@ export default function App() {
                     {order.status === 'preparing' && (
                       <button 
                         onClick={() => updateOrderStatus(order.id, 'delivering')}
-                        className="col-span-2 py-3 bg-blue-500 text-white font-black rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+                        className="col-span-2 py-4 bg-blue-500 text-white font-black rounded-2xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                       >
                         <Truck className="w-4 h-4" /> OUT FOR DELIVERY
                       </button>
@@ -2307,7 +2835,7 @@ export default function App() {
                     {order.status === 'delivering' && (
                       <button 
                         onClick={() => updateOrderStatus(order.id, 'completed')}
-                        className="col-span-2 py-3 bg-green-500 text-white font-black rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+                        className="col-span-2 py-4 bg-green-500 text-white font-black rounded-2xl shadow-lg shadow-green-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                       >
                         <Check className="w-4 h-4" /> MARK COMPLETED
                       </button>
@@ -2315,7 +2843,7 @@ export default function App() {
                     {order.status === 'completed' && (
                       <button 
                         disabled
-                        className="col-span-2 py-3 bg-slate-100 dark:bg-slate-800 text-slate-400 font-black rounded-xl flex items-center justify-center gap-2"
+                        className="col-span-2 py-4 bg-slate-100 dark:bg-slate-800 text-slate-400 font-black rounded-2xl flex items-center justify-center gap-2 border-2 border-dashed border-slate-200 dark:border-slate-700"
                       >
                         <Check className="w-4 h-4" /> ORDER SERVED
                       </button>
@@ -2331,36 +2859,78 @@ export default function App() {
   };
 
   const moodColors: Record<string, string> = {
-    relax: 'from-indigo-500/20 via-slate-900 to-slate-900',
-    focus: 'from-blue-500/20 via-slate-900 to-slate-900',
-    romance: 'from-rose-500/20 via-slate-900 to-slate-900',
-    party: 'from-purple-500/20 via-slate-900 to-slate-900',
+    relax: 'from-indigo-500/40 via-slate-900 to-slate-900',
+    focus: 'from-blue-500/40 via-slate-900 to-slate-900',
+    romance: 'from-rose-500/40 via-slate-900 to-slate-900',
+    party: 'from-purple-500/40 via-slate-900 to-slate-900',
   };
 
-  const AuraBackground = () => (
-    <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-      <motion.div 
-        animate={{ 
-          scale: [1, 1.2, 1],
-          rotate: [0, 90, 0],
-          x: [0, 50, 0],
-          y: [0, -50, 0]
-        }}
-        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-        className={`absolute -top-1/2 -left-1/2 w-full h-full rounded-full blur-[120px] bg-gradient-to-br ${moodColors[currentMood] || 'from-amber-500/20 to-transparent'} opacity-50`}
-      />
-      <motion.div 
-        animate={{ 
-          scale: [1.2, 1, 1.2],
-          rotate: [0, -90, 0],
-          x: [0, -50, 0],
-          y: [0, 50, 0]
-        }}
-        transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-        className={`absolute -bottom-1/2 -right-1/2 w-full h-full rounded-full blur-[120px] bg-gradient-to-br ${moodColors[currentMood] || 'from-amber-500/10 to-transparent'} opacity-30`}
-      />
-    </div>
-  );
+  const AuraBackground = () => {
+    const mood = MOODS.find(m => m.id === currentMood) || MOODS[0];
+    
+    return (
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        {/* Mood Overlay Tint */}
+        <motion.div 
+          key={`overlay-${currentMood}`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 2 }}
+          className={`fixed inset-0 z-0 ${mood.overlay} pointer-events-none`}
+        />
+        
+        <motion.div 
+          key={`aura-1-${currentMood}`}
+          animate={{ 
+            scale: [1, 1.3, 1],
+            rotate: [0, 120, 0],
+            x: [0, 100, 0],
+            y: [0, -100, 0]
+          }}
+          transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+          className={`absolute -top-1/2 -left-1/2 w-full h-full rounded-full blur-[150px] bg-gradient-to-br ${moodColors[currentMood] || 'from-amber-500/20 to-transparent'} opacity-60`}
+        />
+        <motion.div 
+          key={`aura-2-${currentMood}`}
+          animate={{ 
+            scale: [1.3, 1, 1.3],
+            rotate: [0, -120, 0],
+            x: [0, -100, 0],
+            y: [0, 100, 0]
+          }}
+          transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
+          className={`absolute -bottom-1/2 -right-1/2 w-full h-full rounded-full blur-[150px] bg-gradient-to-br ${moodColors[currentMood] || 'from-amber-500/10 to-transparent'} opacity-40`}
+        />
+        
+        {/* Floating Particles for Party Mood */}
+        {currentMood === 'party' && (
+          <div className="absolute inset-0">
+            {[...Array(20)].map((_, i) => (
+              <motion.div
+                key={i}
+                initial={{ 
+                  x: Math.random() * window.innerWidth, 
+                  y: Math.random() * window.innerHeight,
+                  opacity: 0 
+                }}
+                animate={{ 
+                  y: [null, Math.random() * -100],
+                  opacity: [0, 0.5, 0],
+                  scale: [0, 1, 0]
+                }}
+                transition={{ 
+                  duration: 2 + Math.random() * 3, 
+                  repeat: Infinity,
+                  delay: Math.random() * 5
+                }}
+                className="absolute w-1 h-1 bg-white rounded-full blur-[1px]"
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className={`min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans selection:bg-amber-500/30 transition-colors duration-1000 relative`}>
